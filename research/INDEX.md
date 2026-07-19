@@ -10,4 +10,4 @@ forward to it from the note and mark the note's status `concluded`.
 
 | Note | Date | Status |
 |---|---|---|
-| _(none yet)_ | | |
+| [`claude-code-token-cost-tools.md`](claude-code-token-cost-tools.md) | 2026-07-19 | open — verified `ccusage` and `obsidian-skills` as legitimate; flagged `rtk`, `pxpipe`, `caveman`, `graphify`, `andrej-karpathy-skills`, `headroom` as unverified/high-risk (star-inflation pattern, one nonexistent "flagship" repo) |
