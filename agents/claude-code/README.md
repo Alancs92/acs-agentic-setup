@@ -29,6 +29,28 @@ where and how it runs (local shell vs. a managed remote container).
   [`../../setups/claude-code-web-github/`](../../setups/claude-code-web-github/README.md)
   for a documented instance of this.
 
+## Recommended CLAUDE.md starting point
+
+Four principles worth dropping into any new project's `CLAUDE.md`, adapted
+in our own words from a widely-shared set of observations popularly (if
+unofficially — the repo isn't authored or endorsed by him) attributed to
+Andrej Karpathy. Verified the content is sound and has no red flags; see
+[`../../research/claude-code-token-cost-tools.md`](../../research/claude-code-token-cost-tools.md)
+for the verification writeup. Costs nothing to adopt — it's plain text, no
+tool/package to install — and plausibly saves more real spend than any
+token-compression tool by cutting down on wrong-assumption rewrites:
+
+1. **Think before coding.** State assumptions explicitly. If uncertain, ask
+   or surface the ambiguity rather than guessing silently.
+2. **Simplicity first.** Write the minimal code that solves the actual
+   problem — no speculative features, no abstractions for single-use code.
+3. **Surgical changes.** When editing existing code, touch only what the
+   request requires. Match existing patterns; don't "improve" unrelated
+   code along the way.
+4. **Goal-driven execution.** Turn a request into verifiable success
+   criteria before starting, so progress can be checked against something
+   concrete instead of vibes.
+
 ## Notes / gotchas
 
 - Config resolution is layered (user → project → local), and the most
