@@ -11,3 +11,4 @@ Add a new one with [`../templates/setup-template.md`](../templates/setup-templat
 | Setup | Status | Agents | Environment | Summary |
 |---|---|---|---|---|
 | [`claude-code-web-github/`](claude-code-web-github/README.md) | active | Claude Code | cloud (remote execution environment) | Claude Code on the web, single agent, wired to a GitHub repo via MCP with a branch-per-task + draft-PR + auto-watch workflow. |
+| [`token-cost-habits/`](token-cost-habits/README.md) | active | Claude Code | local | `ccusage` (measurement, weekly/after-expensive-session cadence, watch the cache_create vs. output split) + `caveman` (situational output-compression skill). `headroom` deliberately left out — see [`../research/usage-patterns.md`](../research/usage-patterns.md). |

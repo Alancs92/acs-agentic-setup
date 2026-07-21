@@ -11,3 +11,4 @@ forward to it from the note and mark the note's status `concluded`.
 | Note | Date | Status |
 |---|---|---|
 | [`claude-code-token-cost-tools.md`](claude-code-token-cost-tools.md) | 2026-07-19 | concluded — `ccusage`, `caveman`, `headroom`, `andrej-karpathy-skills` verified legitimate (real savings far more modest than marketed, ~3.7% combined in independent replay); `rtk`, `pxpipe`, `graphify` still unverified/high-risk |
+| [`usage-patterns.md`](usage-patterns.md) | 2026-07-19 (living) | open — tracking actual Claude Code usage patterns; specifically deciding whether `headroom` fits a docs-heavy workflow based on real `ccusage` data, not a guess |
