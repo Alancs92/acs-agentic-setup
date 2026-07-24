@@ -1,7 +1,7 @@
 # Design: per-account Claude Code profiles
 
 - **Date:** 2026-07-25
-- **Status:** approved design → pending implementation plan
+- **Status:** implemented (v1) — see "Implementation notes" below
 - **Origin:** token-usage audit ([`../../research/token-usage-audit.md`](../../research/token-usage-audit.md))
   concluded the lean plugin profile was worth applying across accounts. This
   design makes that reproducible and account-aware.
@@ -149,5 +149,32 @@ setups/claude-code-account-profiles/
     INDEX.md
 ```
 Plus: row in `setups/INDEX.md`, a `CHANGELOG.md` entry, and the `apply-profile|ap`
-case added to the `claude-acs` function source (locating that source is the
-first implementation task — it is a shell function, not yet found on disk).
+case added to the `claude-acs` function source.
+
+## Implementation notes (v1, 2026-07-25)
+
+Built and tested (17 stdlib tests pass, incl. the golden-hash anchor). Two
+deviations from the initial design, both discovered by dry-running against real
+state:
+
+1. **Skill pruning is opt-in (`--prune-skills`, default OFF).** The dry-run
+   revealed that `~/.claude-accounts/personal/skills` is itself a **symlink to
+   the shared `~/.claude/skills`**. So pruning a "personal" skill actually
+   removes it from a location shared by other accounts — a bigger blast radius
+   than per-account. To keep the safe thing the default, **plugins apply by
+   default; skill pruning requires `--prune-skills`**, and when the skills dir
+   is a symlink the tool prints a prominent shared-blast-radius warning before
+   acting. Justified because skills curation is low-yield per the audit.
+2. **`claude-acs` lives in `~/claude_code_toggle.sh`** (sourced from `.zshrc`);
+   accounts resolve as `$CLAUDE_ACCOUNT_STORE/<name>`. The wrapper honours
+   `CLAUDE_ACS_PROFILES_REPO` (default `~/repos/acs-agentic-setup`).
+
+**Account status:** only `personal` has a real overlay (Cloudflare skill prune)
+and is confirmed in-sync at the golden hash. `harrison` / `personal2` overlays
+are still empty (= pure core) and have **not** been applied — capturing their
+genuine plugin deviations (e.g. work-only plugins) is the next task before
+running `apply-profile` against them.
+
+**Bootstrap-symlinked prunes** (`code-review`, `skill-creator` in
+`core.skills_prune`) are reported+skipped in v1 as designed; honouring them
+needs the deferred `bootstrap-sync` integration (v2).
