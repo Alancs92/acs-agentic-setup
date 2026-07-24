@@ -1,0 +1,63 @@
+{
+  "_comment": "Shared lean-core Claude Code profile + per-account overlays. See design.md. Applied via: claude-acs apply-profile <account> (or scripts/apply_profile.py). core.plugins is pinned to the applied lean set (personal must hash to 59a9cd93...). Skills use a prune-list; v1 prunes real-dir skills only and skips bootstrap symlinks.",
+  "core": {
+    "plugins": [
+      "superpowers@claude-plugins-official",
+      "feature-dev@claude-plugins-official",
+      "code-review@claude-plugins-official",
+      "code-simplifier@claude-plugins-official",
+      "claude-md-management@claude-plugins-official",
+      "claude-code-setup@claude-plugins-official",
+      "skill-creator@claude-plugins-official",
+      "security-guidance@claude-plugins-official",
+      "explanatory-output-style@claude-plugins-official",
+      "github@claude-plugins-official",
+      "context7@claude-plugins-official",
+      "qmd@qmd",
+      "slack@claude-plugins-official",
+      "typescript-lsp@claude-plugins-official",
+      "pyright-lsp@claude-plugins-official",
+      "gopls-lsp@claude-plugins-official",
+      "hai-agentic-dev@harrison-engineering",
+      "obsidian@obsidian-skills"
+    ],
+    "marketplaces": {
+      "harrison-engineering": { "source": { "source": "github", "repo": "harrison-ai/hai-agentic-dev" } },
+      "obsidian-skills": { "source": { "source": "github", "repo": "kepano/obsidian-skills" } },
+      "qmd": { "source": { "source": "github", "repo": "tobi/qmd" } }
+    },
+    "skills_prune": [
+      "code-review",
+      "skill-creator"
+    ]
+  },
+  "accounts": {
+    "personal": {
+      "plugins_add": [],
+      "plugins_remove": [],
+      "skills_prune": [
+        "cloudflare",
+        "cloudflare-email-service",
+        "cloudflare-one",
+        "cloudflare-one-migrations",
+        "wrangler",
+        "workers-best-practices",
+        "durable-objects",
+        "sandbox-sdk",
+        "agents-sdk",
+        "web-perf",
+        "turnstile-spin"
+      ]
+    },
+    "harrison": {
+      "plugins_add": [],
+      "plugins_remove": [],
+      "skills_prune": []
+    },
+    "personal2": {
+      "plugins_add": [],
+      "plugins_remove": [],
+      "skills_prune": []
+    }
+  }
+}
