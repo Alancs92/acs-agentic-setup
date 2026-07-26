@@ -59,8 +59,8 @@ Restart Claude Code after applying — plugins reload on launch. Verify with
 ## Config
 
 - Manifest: [`profiles.json`](profiles.json). `core.plugins` is pinned to the
-  applied lean set; the test suite asserts `personal` resolves to config hash
-  `59a9cd93…` (the measured lean profile).
+  applied set; the test suite asserts `personal` resolves to config hash
+  `d8e09889…` (base lean-18 `59a9cd93…` + `mattpocock-skills`, added 2026-07-27).
 - No secrets. The tool only writes `enabledPlugins` + `extraKnownMarketplaces`
   and moves named skills; it never touches hooks/env/permissions/model.
 
@@ -73,6 +73,12 @@ Restart Claude Code after applying — plugins reload on launch. Verify with
   (restorable), never deleted.
 - **Bootstrap-symlinked skills** (`code-review`, `skill-creator`) are
   reported+skipped in v1; honouring their prune needs a `bootstrap-sync` change (v2).
-- **`harrison` / `personal2`** overlays are empty (= pure core) and **not yet
-  applied** — capture each account's genuine plugin deviations first.
+- **`harrison` / `personal2`** overlays are populated and **applied** (2026-07-27):
+  harrison → 22 (`5fe17266…`), personal2 → 18 (`ed1f130f…`), personal → 19 (`d8e09889…`).
+- **`mattpocock-skills` (bundle of ~21 skills) is in core** on all three accounts.
+  It re-adds to the Skills row (pure Skills-row cost; MCP/System-tools unaffected).
+  **Future iteration:** once we know which of its skills are actually useful/used a
+  lot, `/context`-measure the bundle's real cost and decide whether to keep the
+  full bundle or wait for individual-skill install
+  ([mattpocock/skills#610](https://github.com/mattpocock/skills/issues/610)).
 - Tests: `python3 scripts/test_apply_profile.py` (17 tests).
