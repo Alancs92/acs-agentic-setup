@@ -12,8 +12,10 @@ import apply_profile as ap  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 MANIFEST_PATH = os.path.join(HERE, os.pardir, "profiles.json")
 
-# The lean profile applied + measured on 2026-07-25 (audit: -8.7k / -20% startup tax).
-GOLDEN_PERSONAL_HASH = "59a9cd9351a982b637b0578a06b29afdb394587df27586cc1fba982738bfbbc5"
+# Personal profile as defined in the manifest = lean-18 + mattpocock-skills = 19 plugins.
+# Base lean-18 was measured 2026-07-25 (audit: -8.7k / -20% startup tax, hash 59a9cd93...);
+# the mattpocock-skills bundle was added to core 2026-07-27.
+GOLDEN_PERSONAL_HASH = "d8e09889da378667d861ecc920e61440a6d14e78386a6eb1e0be2632b0dae057"
 
 
 def load_manifest():
@@ -56,7 +58,7 @@ class GoldenHash(unittest.TestCase):
             resolved["hash"], GOLDEN_PERSONAL_HASH,
             "manifest core.plugins no longer reproduces the applied personal lean profile",
         )
-        self.assertEqual(len(resolved["effective"]), 18)
+        self.assertEqual(len(resolved["effective"]), 19)
 
     def test_hash_is_object_sorted_keys(self):
         # Hash must match sha256 of {plugin:true} with sorted keys.
@@ -109,7 +111,7 @@ class ApplyIntegration(unittest.TestCase):
                               dry_run=False, assume_yes=True, prune_skills=True)
         self.assertEqual(rc, 0)
         s = self._read_settings(acct)
-        self.assertEqual(len(s["enabledPlugins"]), 18)
+        self.assertEqual(len(s["enabledPlugins"]), 19)
         self.assertNotIn("old-plugin@m", s["enabledPlugins"])
         self.assertEqual(s["model"], "sonnet")            # preserved
         self.assertIn("Stop", s["hooks"])                 # preserved
@@ -126,7 +128,7 @@ class ApplyIntegration(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(os.path.exists(os.path.join(acct, "skills", "cloudflare")))  # not pruned
         self.assertFalse(os.path.exists(os.path.join(acct, "skills", ap.PRUNED_DIRNAME)))
-        self.assertEqual(len(self._read_settings(acct)["enabledPlugins"]), 18)  # plugins still applied
+        self.assertEqual(len(self._read_settings(acct)["enabledPlugins"]), 19)  # plugins still applied
 
     def test_backup_created(self):
         acct = self._make_account("personal", ["old@m"])

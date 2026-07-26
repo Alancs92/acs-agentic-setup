@@ -19,12 +19,14 @@
       "pyright-lsp@claude-plugins-official",
       "gopls-lsp@claude-plugins-official",
       "hai-agentic-dev@harrison-engineering",
-      "obsidian@obsidian-skills"
+      "obsidian@obsidian-skills",
+      "mattpocock-skills@mattpocock"
     ],
     "marketplaces": {
       "harrison-engineering": { "source": { "source": "github", "repo": "harrison-ai/hai-agentic-dev" } },
       "obsidian-skills": { "source": { "source": "github", "repo": "kepano/obsidian-skills" } },
-      "qmd": { "source": { "source": "github", "repo": "tobi/qmd" } }
+      "qmd": { "source": { "source": "github", "repo": "tobi/qmd" } },
+      "mattpocock": { "source": { "source": "github", "repo": "mattpocock/skills" } }
     },
     "skills_prune": [
       "code-review",
@@ -50,13 +52,27 @@
       ]
     },
     "harrison": {
-      "plugins_add": [],
-      "plugins_remove": [],
+      "plugins_add": [
+        "playwright@claude-plugins-official",
+        "csharp-lsp@claude-plugins-official",
+        "ralph-loop@claude-plugins-official",
+        "frontend-design@claude-plugins-official"
+      ],
+      "plugins_remove": [
+        "obsidian@obsidian-skills"
+      ],
       "skills_prune": []
     },
     "personal2": {
-      "plugins_add": [],
-      "plugins_remove": [],
+      "plugins_add": [
+        "rust-analyzer-lsp@claude-plugins-official",
+        "frontend-design@claude-plugins-official"
+      ],
+      "plugins_remove": [
+        "hai-agentic-dev@harrison-engineering",
+        "pyright-lsp@claude-plugins-official",
+        "gopls-lsp@claude-plugins-official"
+      ],
       "skills_prune": []
     }
   }
