@@ -10,4 +10,10 @@ forward to it from the note and mark the note's status `concluded`.
 
 | Note | Date | Status |
 |---|---|---|
-| _(none yet)_ | | |
+| [`old-coder-evidence-first.md`](old-coder-evidence-first.md) — is [AmazingAng/old-coder](https://github.com/AmazingAng/old-coder)'s SPEC → GAUNTLET → EVIDENCE loop worth adopting, and where does it duplicate what `sediment` / `life-and-times` already do? Benchmarked; recommendation is adopt-in-part. | 2026-08-15 | open |
+
+Supporting sandboxes live alongside their note:
+
+| Directory | Belongs to |
+|---|---|
+| [`old-coder-benchmark/`](old-coder-benchmark/INDEX.md) | `old-coder-evidence-first.md` — reproducible process-vs-defect-detection benchmark |
