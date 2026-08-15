@@ -10,7 +10,9 @@ forward to it from the note and mark the note's status `concluded`.
 
 | Note | Date | Status |
 |---|---|---|
-| [`old-coder-evidence-first.md`](old-coder-evidence-first.md) — is [AmazingAng/old-coder](https://github.com/AmazingAng/old-coder)'s SPEC → GAUNTLET → EVIDENCE loop worth adopting, and where does it duplicate what `sediment` / `life-and-times` already do? Benchmarked; recommendation is adopt-in-part. | 2026-08-15 | open |
+| [`claude-code-token-cost-tools.md`](claude-code-token-cost-tools.md) | 2026-07-19 | concluded — `ccusage`, `caveman`, `headroom`, `andrej-karpathy-skills` verified legitimate (real savings far more modest than marketed, ~3.7% combined in independent replay); `rtk`, `pxpipe`, `graphify` still unverified/high-risk |
+| [`usage-patterns.md`](usage-patterns.md) | 2026-07-19 (living) | open — tracking actual Claude Code usage patterns; specifically deciding whether `headroom` fits a docs-heavy workflow based on real `ccusage` data, not a guess |
+| [`old-coder-evidence-first.md`](old-coder-evidence-first.md) | 2026-08-15 | open — is [AmazingAng/old-coder](https://github.com/AmazingAng/old-coder)'s SPEC → GAUNTLET → EVIDENCE loop worth adopting, and where does it duplicate what `sediment` / `life-and-times` already enforce? Benchmarked against a 15-defect corpus; recommendation is adopt-in-part (spec artifact yes, coverage-as-quality-signal no) |
 
 Supporting sandboxes live alongside their note:
 

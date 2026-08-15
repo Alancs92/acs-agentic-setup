@@ -6,7 +6,7 @@ repo. This is the timeline view — for the structural map, see
 
 ## 2026-08-15
 
-- First research note: [`research/old-coder-evidence-first.md`](research/old-coder-evidence-first.md)
+- New research note: [`research/old-coder-evidence-first.md`](research/old-coder-evidence-first.md)
   — evaluation of the `old-coder` skill's SPEC → GAUNTLET → EVIDENCE loop
   against what `sediment` and `life-and-times` already enforce, with a
   reproducible benchmark in [`research/old-coder-benchmark/`](research/old-coder-benchmark/INDEX.md)
@@ -14,6 +14,22 @@ repo. This is the timeline view — for the structural map, see
   spec artifact, adopt mutation testing only as a periodic audit, drop
   coverage as a quality signal. Turned up two live issues in `sediment`
   (fail-open coverage gate in CI; timezone-naive timestamp parsing).
+
+## 2026-07-19
+
+- Deep-dived the token-cost tool cluster further: corrected an earlier
+  wrong "headroom doesn't exist" finding (it moved orgs), and verified
+  `caveman` and `andrej-karpathy-skills` against independent sources.
+  Real-world combined impact of the whole tool stack: ~3.7% of spend in an
+  independently reproduced replay, far below the marketed 60–90%.
+- Adopted [`setups/token-cost-habits`](setups/token-cost-habits/README.md):
+  `ccusage` for measurement (cadence: after expensive sessions + weekly,
+  watch the cache_create/output split, not the total) and `caveman` as a
+  situational output-compression skill.
+- Started [`research/usage-patterns.md`](research/usage-patterns.md), a
+  living note tracking actual Claude Code usage patterns — first use: decide
+  whether `headroom` fits a docs-heavy workflow based on real `ccusage`
+  data rather than a guess.
 
 ## 2026-07-18
 
