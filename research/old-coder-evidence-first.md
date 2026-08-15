@@ -67,8 +67,13 @@ experimental and backs with a single case study. Ignore it for now.
 
 ## What we already have
 
-Our practice is spread across four repos, and the overlap with old-coder is
-real but partial.
+Our *engineering* practice is spread across four repos, and the overlap with
+old-coder is real but partial.
+
+**Scope note:** this map covers the repos reachable from a cloud session. The
+second-brain vault (`textx-docs`) is local-only and was not examined, so if it
+carries its own conventions that overlap old-coder, they are not represented
+below. Revisit this table from a machine that has the vault.
 
 | Where | What it already says | old-coder equivalent | Verdict |
 |---|---|---|---|
@@ -253,6 +258,9 @@ general:
   sampled from our real defect history.
 - **Detection rates are ceilings**, measured on a spec I wrote for a module I
   understood completely.
+- **The duplication map is incomplete.** `textx-docs` (the second-brain vault)
+  is local-only and was not read, so the "what we already have" table covers
+  engineering conventions only.
 
 What survives all of that: the *relative ordering* (spec ≫ gauntlet ≫ types ≫
 lint), the coverage/detection divergence, and the timezone finding. Those are
