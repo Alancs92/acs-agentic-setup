@@ -1,0 +1,232 @@
+{
+  "configs": [
+    "types (mypy)",
+    "lint (ruff)",
+    "A: ad-hoc TDD",
+    "B: spec-driven",
+    "C: +gauntlet"
+  ],
+  "baseline_seconds": {
+    "types (mypy)": 3.9160581029999832,
+    "lint (ruff)": 0.010368639000006397,
+    "A: ad-hoc TDD": 0.6534803640000177,
+    "B: spec-driven": 0.397430619000005,
+    "C: +gauntlet": 5.825334178999981
+  },
+  "bugs": {
+    "B01": {
+      "spec_ref": "S7",
+      "kind": "boundary",
+      "desc": "touching intervals no longer merge (<= becomes <)"
+    },
+    "B02": {
+      "spec_ref": "S11",
+      "kind": "boundary",
+      "desc": "coverage threshold exclusive instead of inclusive"
+    },
+    "B03": {
+      "spec_ref": "S12",
+      "kind": "logic",
+      "desc": "fail-unsafe: drops screenpipe on ANY overlap (silent data loss)"
+    },
+    "B04": {
+      "spec_ref": "S13",
+      "kind": "logic",
+      "desc": "coverage double-counted: union cursor never advances"
+    },
+    "B05": {
+      "spec_ref": "S3",
+      "kind": "validation",
+      "desc": "zero-length segment passes validation (later ZeroDivisionError)"
+    },
+    "B06": {
+      "spec_ref": "S2",
+      "kind": "validation",
+      "desc": "naive-datetime check and/or swap lets naive timestamps through"
+    },
+    "B07": {
+      "spec_ref": "S5",
+      "kind": "logic",
+      "desc": "replace(tzinfo=utc) instead of astimezone(utc): wrong instant"
+    },
+    "B08": {
+      "spec_ref": "S15",
+      "kind": "contract",
+      "desc": "output sorted by start only: ties fall back to insertion order"
+    },
+    "B09": {
+      "spec_ref": "S9",
+      "kind": "logic",
+      "desc": "merge takes later end unconditionally: a contained segment shrinks the span"
+    },
+    "B10": {
+      "spec_ref": "N1",
+      "kind": "contract",
+      "desc": "sorts the caller's list in place (input mutation)"
+    },
+    "B11": {
+      "spec_ref": "S13",
+      "kind": "boundary",
+      "desc": "off-by-one: last coverage contributor skipped"
+    },
+    "B12": {
+      "spec_ref": "S2/S5",
+      "kind": "logic",
+      "desc": "fast path for single-element input skips validation and normalization"
+    },
+    "B13": {
+      "spec_ref": "S14",
+      "kind": "logic",
+      "desc": "authority inverted: screenpipe treated as authoritative over meetily"
+    },
+    "B14": {
+      "spec_ref": "S12",
+      "kind": "logic",
+      "desc": "overlap seconds doubled: coverage inflated, over-drops"
+    },
+    "B15": {
+      "spec_ref": "S2",
+      "kind": "validation",
+      "desc": "only `start` is checked for tz-awareness, `end` is not"
+    },
+    "B16": {
+      "spec_ref": "S6",
+      "kind": "contract",
+      "desc": "merged segment keeps the LATER segment's label, not the earlier"
+    },
+    "B17": {
+      "spec_ref": "S6/N3",
+      "kind": "logic",
+      "desc": "same-source merge no longer sorts first: unordered input fails to merge"
+    }
+  },
+  "detection": {
+    "B01": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B02": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B03": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B04": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": false,
+      "C: +gauntlet": false
+    },
+    "B05": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B06": {
+      "types (mypy)": true,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B07": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B08": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": false,
+      "C: +gauntlet": false
+    },
+    "B09": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": false,
+      "C: +gauntlet": true
+    },
+    "B10": {
+      "types (mypy)": true,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B11": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B12": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B13": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B14": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B15": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B16": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": false,
+      "B: spec-driven": true,
+      "C: +gauntlet": true
+    },
+    "B17": {
+      "types (mypy)": false,
+      "lint (ruff)": false,
+      "A: ad-hoc TDD": true,
+      "B: spec-driven": false,
+      "C: +gauntlet": true
+    }
+  },
+  "summary": {
+    "types (mypy)": 2,
+    "lint (ruff)": 0,
+    "A: ad-hoc TDD": 6,
+    "B: spec-driven": 13,
+    "C: +gauntlet": 15
+  },
+  "total_bugs": 17
+}

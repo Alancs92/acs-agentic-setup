@@ -4,6 +4,17 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-08-15
+
+- New research note: [`research/old-coder-evidence-first.md`](research/old-coder-evidence-first.md)
+  — evaluation of the `old-coder` skill's SPEC → GAUNTLET → EVIDENCE loop
+  against what `sediment` and `life-and-times` already enforce, with a
+  reproducible benchmark in [`research/old-coder-benchmark/`](research/old-coder-benchmark/INDEX.md)
+  measuring defect detection per process regime. Recommendation: adopt the
+  spec artifact, adopt mutation testing only as a periodic audit, drop
+  coverage as a quality signal. Turned up two live issues in `sediment`
+  (fail-open coverage gate in CI; timezone-naive timestamp parsing).
+
 ## 2026-07-19
 
 - Deep-dived the token-cost tool cluster further: corrected an earlier

@@ -5,6 +5,18 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Python sandboxes under research/ — recreated from requirements-dev.txt
+.venv/
+__pycache__/
+*.egg-info/
+.coverage
+.hypothesis/
+.mutmut-cache
+mutants/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Local-only overrides / secrets — never commit these
 *.local
 .env

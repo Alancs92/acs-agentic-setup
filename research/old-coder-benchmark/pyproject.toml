@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sessionmerge"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:randomly"
+
+[tool.mutmut]
+paths_to_mutate = ["src/sessionmerge/"]
+tests_dir = ["tests/"]
+
+[tool.ruff]
+line-length = 100
+exclude = ["tools", "bugs", ".venv", "build", "*.egg-info"]
+
+[tool.ruff.lint]
+# Pinned explicitly rather than relying on the default set, so a ruff upgrade
+# can't silently change what this gauntlet layer means.
+select = ["E4", "E7", "E9", "F", "B", "SIM", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
