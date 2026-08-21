@@ -127,8 +127,9 @@ that file's rollup. Transcripts are append-only, so any new content changes
 `size` and the key self-invalidates. A `schema_version` field forces a full
 re-parse when the rollup shape changes.
 
-Expected, measured on the real 1.99 GB / 5695-file corpus: **~14s cold**
-(147 MB/s, 1.7 ms/file), and ~1s warm.
+Measured end to end on the real 1.99 GB / 5706-file corpus: **11.3s cold**,
+**0.71s warm** with 5703/5706 cache hits. (The three misses are live session
+files that grew between runs — the append-only invalidation working as designed.)
 
 This is much faster than assumed when the cache was specified — the estimate was
 "minutes cold". The cache is therefore a convenience, not a necessity: a cold run
@@ -241,9 +242,25 @@ a plausible-looking wrong chart from missing keys.
 | Histogram kept alongside session rows | Derivable from the rows, but costs well under a kilobyte and saves the dashboard a full pass on load. |
 | `projects` rollup kept | Also derivable; ~150 rows, and it carries first/last-seen without a scan. |
 
-Expected size: roughly **1–1.5 MB**, up from the earlier 300–600 KB estimate —
-per-day projects and per-session rows are what grew it. Still parsed by a browser
-in milliseconds when inlined.
+**Measured, not estimated** (full corpus, 2026-08-22):
+
+| Artifact | Size | Note |
+|---|---|---|
+| `stats.json` | **2.30 MB** | 5502 prompt buckets + 3550 session rows at `indent=1` |
+| `dashboard.html` | 2.34 MB | template (43 KB) + the JSON + 42 bytes of wrapper |
+| `cache.json` | 5.63 MB | the largest artifact by far |
+
+`stats.json` came in at ~1.6x the 1–1.5 MB predicted here. The two granular
+decisions taken earlier — per-day project rows and per-session rows — are what
+drove it, and both were deliberate. Consequences:
+
+- Inlined JSON means no transfer cost, but a 2.3 MB `JSON.parse` is the
+  dashboard's first-paint budget. Still milliseconds, worth knowing.
+- `cache.json` at 5.63 MB is bigger than both outputs combined. Since a cold run
+  is only ~11s, deleting it is always a safe recovery step.
+- Dropping `indent=1` for a compact separator would cut `stats.json` by roughly a
+  third. Kept indented because a human-diffable artifact is worth more than a
+  third of 2 MB.
 
 ### Time is stored in UTC
 
