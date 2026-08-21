@@ -127,7 +127,17 @@ that file's rollup. Transcripts are append-only, so any new content changes
 `size` and the key self-invalidates. A `schema_version` field forces a full
 re-parse when the rollup shape changes.
 
-Expected: first run minutes, subsequent runs seconds.
+Expected, measured on the real 1.99 GB / 5695-file corpus: **~14s cold**
+(147 MB/s, 1.7 ms/file), and ~1s warm.
+
+This is much faster than assumed when the cache was specified — the estimate was
+"minutes cold". The cache is therefore a convenience, not a necessity: a cold run
+is already interactive. Two consequences worth keeping in mind:
+
+- `--no-cache` is a perfectly usable default if the cache ever misbehaves.
+- The known wart that a filtered run (`--accounts`, `--since`) drops cache
+  entries for skipped files costs ~13s on the next full run, not minutes. Not
+  worth engineering around.
 
 ## Output
 

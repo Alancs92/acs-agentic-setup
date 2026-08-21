@@ -1586,7 +1586,8 @@ Expected: 8 tests PASS
 Run: `cd scripts && python3 -m unittest discover -s . -v`
 Expected: all tests from Tasks 1–6 PASS.
 
-Then the real machine — this is the first full pass over ~2 GB, so expect minutes:
+Then the real machine. Measured cold-parse throughput is 147 MB/s, so the full
+1.99 GB pass takes **~14s**, not minutes:
 ```bash
 cd scripts && time python3 collect_stats.py
 ```
