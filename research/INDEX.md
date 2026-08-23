@@ -10,4 +10,5 @@ forward to it from the note and mark the note's status `concluded`.
 
 | Note | Date | Status |
 |---|---|---|
-| _(none yet)_ | | |
+| [`baseline-metric-methodology.md`](baseline-metric-methodology.md) | 2026-07-24 | open (living reference) — how to measure CC token usage + trustworthy before/after methodology |
+| [`token-usage-audit.md`](token-usage-audit.md) | 2026-07-24 | open — plugin-pruning audit; baseline captured, treatment pending |
