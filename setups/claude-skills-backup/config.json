@@ -1,0 +1,54 @@
+{
+  "$comment": "Claude skills/config backup. See README.md LEGEND for every term used here.",
+  "schema_version": 1,
+
+  "sources": {
+    "skills":           {"enabled": true,  "path": "~/.claude/skills"},
+    "commands":         {"enabled": true,  "path": "~/.claude/commands"},
+    "agents":           {"enabled": true,  "path": "~/.claude/agents"},
+    "hooks":            {"enabled": true,  "path": "~/.claude/hooks"},
+    "settings":         {"enabled": true,  "path": "~/.claude-accounts", "accounts": ["personal", "personal2", "harrison"]},
+    "plugins":          {"enabled": true,  "path": "~/.claude/plugins", "mode": "manifests"}
+  },
+
+  "exclude_globs": [
+    "**/.git/**",
+    "**/.DS_Store",
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/*.pyc"
+  ],
+
+  "storage": {
+    "onedrive_root": "~/Library/CloudStorage/OneDrive-harrison.ai/Claude Skills Backup",
+    "live_mirror":   "~/Library/CloudStorage/OneDrive-harrison.ai/Claude User Skills",
+    "local_fallback": "~/.cache/claude-acs-backup",
+    "refresh_live_mirror": true,
+    "compression": "xz"
+  },
+
+  "retention": {
+    "always_keep_latest": 2,
+    "keep_all_within_days": 30,
+    "tiers": [
+      {"older_than_days": 30, "thin_to": "weekly"},
+      {"older_than_days": 90, "thin_to": "monthly"}
+    ],
+    "stable_after_days": 180,
+    "stable_keep": 2,
+    "never_delete_only_copy": true
+  },
+
+  "secrets": {
+    "mode": "redact",
+    "key_patterns": ["token", "secret", "password", "apikey", "api_key", "credential", "auth"],
+    "value_patterns": ["^sk-ant-", "^ghp_", "^gho_", "^github_pat_", "^xox[baprs]-", "^Bearer\\s+"]
+  },
+
+  "schedule": {
+    "interval_days": 7,
+    "hour": 3,
+    "minute": 0,
+    "label": "com.acs.claude-skills-backup"
+  }
+}
