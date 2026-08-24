@@ -10,3 +10,14 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# claude-skills-backup — blobs and the working index stay OUT of git.
+# Anything committed can never be pruned, which would make the retention policy
+# cosmetic and grow the repo forever. The audit trail lives in catalog.jsonl,
+# which IS committed; index.db is rebuildable from it plus the blobs.
+setups/claude-skills-backup/objects/
+setups/claude-skills-backup/index.db
+setups/claude-skills-backup/*.db-wal
+setups/claude-skills-backup/*.db-shm
+__pycache__/
+*.pyc
