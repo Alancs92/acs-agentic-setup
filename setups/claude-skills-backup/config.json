@@ -16,7 +16,10 @@
     "**/.DS_Store",
     "**/node_modules/**",
     "**/__pycache__/**",
-    "**/*.pyc"
+    "**/*.pyc",
+    "*.log",
+    "**/*.log",
+    "plugin-catalog-cache.json"
   ],
 
   "storage": {
@@ -46,8 +49,10 @@
   },
 
   "schedule": {
+    "$comment": "Monday 17:00. Deliberately a weekday working hour: launchd coalesces calendar events missed while the machine SLEEPS (launchd.plist(5)), but that is documented for sleep, not for a powered-off machine, and a LaunchAgent only loads at login. Firing while the machine is demonstrably awake needs no catch-up. weekday: 0=Sunday .. 6=Saturday.",
     "interval_days": 7,
-    "hour": 3,
+    "weekday": 1,
+    "hour": 17,
     "minute": 0,
     "label": "com.acs.claude-skills-backup"
   }

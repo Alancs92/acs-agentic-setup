@@ -504,12 +504,21 @@ def _calendar_dict(pairs: List[Tuple[str, int]]) -> str:
     return f"\t<key>StartCalendarInterval</key>\n\t<dict>{inner}</dict>"
 
 
-def _schedule_block(interval_days: int, hour: int, minute: int) -> str:
+def _schedule_block(interval_days: int, hour: int, minute: int,
+                    weekday: int = 0) -> str:
     if interval_days == 1:
         return _calendar_dict([("Hour", hour), ("Minute", minute)])
     if interval_days == 7:
-        # launchd Weekday 0 is Sunday.
-        return _calendar_dict([("Weekday", 0), ("Hour", hour), ("Minute", minute)])
+        # launchd Weekday: 0 is Sunday, 1 Monday ... 6 Saturday.
+        #
+        # Prefer a weekday/working hour over the small-hours default. launchd
+        # does coalesce calendar events missed while the machine SLEEPS (see
+        # launchd.plist(5)), but that guarantee is documented for sleep, not for
+        # a powered-off machine -- a LaunchAgent only loads at login. Firing
+        # while the machine is demonstrably awake needs no catch-up at all.
+        return _calendar_dict(
+            [("Weekday", weekday), ("Hour", hour), ("Minute", minute)]
+        )
     return f"\t<key>StartInterval</key>\n\t<integer>{interval_days * 86400}</integer>"
 
 
@@ -517,7 +526,8 @@ def render_launchd_plist(config: dict, script_path: Path) -> str:
     """Return plist XML honouring schedule.interval_days/hour/minute.
 
     interval_days == 1  -> StartCalendarInterval daily at hour:minute
-    interval_days == 7  -> StartCalendarInterval weekly (Weekday 0) at hour:minute
+    interval_days == 7  -> StartCalendarInterval weekly on schedule.weekday
+                           (0=Sunday .. 6=Saturday, default 0) at hour:minute
     otherwise           -> StartInterval in seconds
     Label from schedule.label. Follows com.acs.tide-sync.plist conventions:
     explicit ProgramArguments, EnvironmentVariables with HOME + a spelled-out
@@ -529,6 +539,7 @@ def render_launchd_plist(config: dict, script_path: Path) -> str:
     interval_days = int(schedule.get("interval_days", 7))
     hour = int(schedule.get("hour", 3))
     minute = int(schedule.get("minute", 0))
+    weekday = int(schedule.get("weekday", 0))
 
     if interval_days < 1:
         raise ValueError(f"schedule.interval_days must be >= 1, got {interval_days}")
@@ -536,6 +547,8 @@ def render_launchd_plist(config: dict, script_path: Path) -> str:
         raise ValueError(f"schedule.hour must be 0-23, got {hour}")
     if not 0 <= minute <= 59:
         raise ValueError(f"schedule.minute must be 0-59, got {minute}")
+    if not 0 <= weekday <= 6:
+        raise ValueError(f"schedule.weekday must be 0-6 (0=Sunday), got {weekday}")
 
     home = Path.home()
     # ~/Library/Logs always exists; a StandardOutPath in a directory that does
@@ -554,7 +567,7 @@ def render_launchd_plist(config: dict, script_path: Path) -> str:
         f"\t\t<key>HOME</key>\n\t\t<string>{_xml_escape(str(home))}</string>\n"
         f"\t\t<key>PATH</key>\n\t\t<string>{_xml_escape(launchd_path)}</string>"
         "\n\t</dict>",
-        _schedule_block(interval_days, hour, minute),
+        _schedule_block(interval_days, hour, minute, weekday),
         # False, like tide-sync: loading or reloading the agent must not kick off
         # an unscheduled backup run.
         "\t<key>RunAtLoad</key>\n\t<false/>",

@@ -88,10 +88,14 @@ def discover_with_problems(config: dict) -> Tuple[List[Unit], List[str]]:
     problems: List[str] = []
     sources = config.get("sources") or {}
 
+    # Exclusions apply to unit SELECTION as well as to the walk inside a unit,
+    # so a config can keep churning artefacts (logs, caches) out of the store.
+    matcher = _Matcher(config.get("exclude_globs") or [])
+
     for key, kind in _DIR_SOURCES:
-        _collect_dir_source(sources.get(key), key, kind, units, problems)
+        _collect_dir_source(sources.get(key), key, kind, units, problems, matcher)
     _collect_settings(sources.get("settings"), units, problems)
-    _collect_plugins(sources.get("plugins"), units, problems)
+    _collect_plugins(sources.get("plugins"), units, problems, matcher)
 
     units.sort(key=lambda unit: (unit.kind, unit.name))
     return units, problems
@@ -152,8 +156,18 @@ def _collect_dir_source(
     kind: str,
     units: List[Unit],
     problems: List[str],
+    matcher: Optional["_Matcher"] = None,
 ) -> None:
-    """One unit per non-hidden top-level child of `spec['path']`."""
+    """One unit per non-hidden top-level child of `spec['path']`.
+
+    `matcher` (built from config's exclude_globs) is applied at SELECTION time,
+    not just when walking inside a unit. Without this, a single-file unit can
+    never be excluded -- iter_files returns `[source_path]` for it unconditionally,
+    since the unit was chosen by name. That gap let `hooks/notify.log` become a
+    tracked unit: a growing log file that snapshots afresh every single run and
+    accumulates forever, which is exactly the churn the content hash exists to
+    prevent.
+    """
     if not _enabled(spec):
         return
     root = _usable_dir(spec.get("path"), key, problems)
@@ -165,6 +179,8 @@ def _collect_dir_source(
             continue  # .DS_Store, .gitignore, the skills repo's own .git
         if not child.exists():
             problems.append("%s: broken symlink skipped: %s" % (key, child))
+            continue
+        if matcher is not None and matcher.excludes(child.name):
             continue
         real = expand(child)
         units.append(Unit(kind, child.name, real, real.is_file()))
@@ -196,9 +212,19 @@ def _collect_settings(
 
 
 def _collect_plugins(
-    spec: Optional[dict], units: List[Unit], problems: List[str]
+    spec: Optional[dict],
+    units: List[Unit],
+    problems: List[str],
+    matcher: Optional["_Matcher"] = None,
 ) -> None:
-    """Manifests only by default; the whole tree under mode 'full'."""
+    """Manifests only by default; the whole tree under mode 'full'.
+
+    `matcher` is applied to the manifest FILENAME, so config can drop
+    regenerable ones. `plugin-catalog-cache.json` is the motivating case: it is
+    a top-level *.json and therefore looks like a manifest, but it is a cache
+    that turns over on its own schedule, so it would snapshot far more often
+    than anything actually authored.
+    """
     if not _enabled(spec):
         return
     root = _usable_dir(spec.get("path"), "plugins", problems)
@@ -213,6 +239,8 @@ def _collect_plugins(
         if child.name.startswith(".") or child.suffix != ".json":
             continue
         if not child.is_file():
+            continue
+        if matcher is not None and matcher.excludes(child.name):
             continue
         units.append(
             Unit(KIND_PLUGIN_MANIFEST, child.stem, expand(child), True)

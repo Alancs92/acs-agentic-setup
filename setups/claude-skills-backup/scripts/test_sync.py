@@ -698,9 +698,27 @@ class TestRenderLaunchdPlist(_SyncTestCase):
         xml = sync.render_launchd_plist(cfg, Path("/opt/acs/backup.py"))
         self.lint(xml)
         d = plistlib.loads(xml.encode("utf-8"))
-        self.assertEqual(d["Label"], "com.acs.claude-skills-backup")
-        self.assertEqual(d["StartCalendarInterval"],
-                         {"Weekday": 0, "Hour": 3, "Minute": 0})
+        self.assertEqual(d["Label"], cfg["schedule"]["label"])
+
+        # Derive the expectation from config rather than hardcoding it: the
+        # point of this test is that the shipped config renders a valid,
+        # lintable plist whose schedule MATCHES what the config asked for.
+        # Pinning literal values just breaks the suite every time the cadence
+        # is tuned, which teaches people to edit the test instead of reading it.
+        sched = cfg["schedule"]
+        self.assertEqual(sched["interval_days"], 7,
+                         "weekly is the shipped cadence; update this test "
+                         "deliberately if that changes")
+        self.assertEqual(d["StartCalendarInterval"], {
+            "Weekday": sched.get("weekday", 0),
+            "Hour": sched["hour"],
+            "Minute": sched["minute"],
+        })
+        # A backup that fires while the machine is asleep relies on launchd's
+        # wake-coalescing; a weekday working hour does not. Guard the intent.
+        self.assertTrue(1 <= sched.get("weekday", 0) <= 5,
+                        "schedule.weekday should be a weekday (1-5) so the run "
+                        "does not depend on catch-up after sleep")
 
 
 if __name__ == "__main__":
