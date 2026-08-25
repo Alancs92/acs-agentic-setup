@@ -125,17 +125,31 @@ by keeping it out of Git.
 The shared vocabulary module is `backup_types.py`, **not** `types.py`, and this is
 load-bearing rather than stylistic.
 
-A `types.py` in the scripts directory shadows the standard library's `types` for
-any process whose `sys.path[0]` is that directory — which is every `python3
-backup.py`, every `python3 -m unittest`, and every direct test run. CPython's own
-`functools`, `enum` and `importlib` do `from types import GenericAlias`, hit the
-local file instead, and the interpreter dies during startup before a single line
-of project code executes.
+A `types.py` in the scripts directory shadows the standard library's `types`.
+Measured on this machine, 2026-08-25:
 
-Verified independently by two agents: fatal on Python 3.9.6 and 3.12
-(`ImportError: cannot import name 'MappingProxyType' from partially initialized
-module`); on 3.13 the stdlib wins instead and the shared module becomes
-unreachable by name. There is no Python version where the name works.
+| Interpreter | `python3 backup.py` | `python3 -m unittest` | `import types` gives |
+|---|---|---|---|
+| 3.9.6 (`/usr/bin/python3`) | works | **fails** | the local file |
+| 3.13.11 (Homebrew) | works | works | the **stdlib** |
+
+On 3.9.6 the `-m` path dies with `ImportError: cannot import name 'GenericAlias'
+from 'types'`, raised from CPython's own `functools.py:22`. `-m` prepends the
+working directory to `sys.path` before `runpy` imports `functools`; a direct
+script run imports it during startup, before `sys.path[0]` is set. The asymmetry
+is the dangerous part — **the test suite dies while the code under test runs
+fine**, which reads as a broken test setup rather than a misnamed module.
+
+3.13 does not crash but is broken in the other direction: `import types` resolves
+to the stdlib, so the shared module is unreachable by its own name. Neither
+interpreter gives a working `types.py`.
+
+> **Correction (2026-08-25).** This section previously claimed the name was fatal
+> to *every* invocation and cited `cannot import name 'MappingProxyType' from
+> partially initialized module`. Neither survived a reproduction; the 3.12 claim
+> could not be checked (not installed here). The original overstated the blast
+> radius because the failure was first met through `-m unittest` and generalised
+> without testing a plain script run.
 
 ## Schema
 
