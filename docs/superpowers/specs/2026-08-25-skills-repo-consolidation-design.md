@@ -169,18 +169,45 @@ but misleading.
 | `install.sh` re-creates symlinks on a later run | Phase 4 updates it; until then it skips real dirs rather than clobbering |
 | The 8 uniques deleted while still wanted | Phase 1 precedes Phase 3; git history retains them regardless |
 
-## Open questions for review
+## Decisions (resolved 2026-08-25)
 
-1. **The 4 untracked entries** in `~/.claude/skills` — are `sandbox-next`,
-   `sandbox-stable` and `sandbox-migrate-to-next` intended as permanent skills,
-   or scratch? They must be committed or removed before Phase 2.
-2. **The 8 uniques** — promote to bootstrap's live directory, or archive? They
-   look like language/framework starters (`python`, `typescript`, `react-web`)
-   that may be superseded by plugins already installed.
-3. **Does `bootstrap-sync` survive?** If bootstrap becomes an export target, a
-   publish command is useful; if publishing stays manual and rare, the skill is
-   dead weight.
-4. **Should `acs-claude-skills` become private-safe?** It holds work-specific
-   skills (`ask-pensieve`, `v2-support-roster`, `jira-ticket-writer`). Worth
-   confirming its visibility is deliberate before it becomes the sole source of
-   truth.
+1. **The 4 untracked entries are keepers.** `sandbox-stable`, `sandbox-next` and
+   `sandbox-migrate-to-next` are a coherent Cloudflare Sandbox SDK set — current
+   stable, the 1.0 preview, and the migration path between them — pairing with
+   the existing `sandbox-sdk`, `cloudflare`, `wrangler` and
+   `workers-best-practices` skills. Commit them in Phase 0. The fourth,
+   `worktree-cleanup`, is a bootstrap symlink and is handled by Phase 2.
+
+2. **Archive the 8 uniques.** `python`, `typescript`, `react-web`,
+   `nodejs-backend`, `playwright-testing`, `codex-review`, `gemini-review`,
+   `doc-coauthoring` are treated as superseded. They are not promoted to
+   bootstrap's live directory; Phase 3 deletes them with the rest of the stale
+   tree, and git history remains the archive. Tagging in Phase 0 makes that
+   history addressable by name.
+
+3. **`bootstrap-sync` retires; it is not inverted.** Its job is to get
+   bootstrap's skills into `~/.claude/skills`, and that job disappears once the
+   tree owns them outright.
+
+   The underlying want — "reuse my skills anywhere" — is satisfied by
+   portability itself, not by a sync tool. Once the symlinks are gone,
+   `acs-claude-skills` is self-contained, so provisioning a new machine is:
+
+   ```
+   git clone <acs-claude-skills> ~/.claude/skills
+   ```
+
+   No install script, no symlink farm, no second repo. Phase 4 therefore
+   documents the clone path in place of `bootstrap-sync` rather than writing a
+   publish command. Publishing to bootstrap stays a deliberate, manual copy —
+   rare enough not to justify tooling.
+
+4. **`acs-claude-skills` is PRIVATE and that is deliberate.** Verified
+   2026-08-25. It is safe as the sole source of truth for work-specific skills
+   (`ask-pensieve`, `v2-support-roster`, `jira-ticket-writer`). No visibility
+   change required.
+
+   Corollary: because provisioning is now `git clone` of a private repo, a new
+   machine needs GitHub auth for `alan-soewargo-hai` before it has any skills.
+   That is a fair trade for portability, but it should be stated in the README
+   rather than discovered.
