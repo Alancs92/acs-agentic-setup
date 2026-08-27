@@ -141,9 +141,13 @@ def render_launchd_plist(config: dict, script_path: Path,
     log_path = resolve_log_path(config, label)
     launchd_path = "{0}:{1}".format(home / ".local" / "bin", _LAUNCHD_PATH_TAIL)
 
-    program = [_PYTHON, str(script_path), "pull", "--quiet"]
+    # --config is defined on the top-level parser, so it must precede the
+    # subcommand. Appending it after "pull" produces a plist launchd accepts and
+    # argparse rejects -- a job that runs daily and fails every time.
+    program = [_PYTHON, str(script_path)]
     if config_path is not None:
         program.extend(["--config", str(config_path)])
+    program.extend(["pull", "--quiet"])
 
     body = "\n\n".join([
         _plist_string("Label", label),
