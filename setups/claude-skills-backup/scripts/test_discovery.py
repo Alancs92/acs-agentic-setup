@@ -468,6 +468,45 @@ class TestPlugins(TempTreeCase):
 
 # --- settings ---------------------------------------------------------------
 class TestSettings(TempTreeCase):
+    def test_shared_claude_md_is_backed_up_when_configured(self):
+        """The CLAUDE.md outside every account directory must be backed up too.
+
+        `~/.claude/CLAUDE.md` loads for every account, not only the one
+        CLAUDE_CONFIG_DIR points at, so it is the highest-leverage instruction
+        file on the machine -- and being outside ~/.claude-accounts, the
+        per-account walk never saw it.
+        """
+        accounts = self.root / "accounts"
+        write(accounts / "personal" / "CLAUDE.md", "# per-account")
+        shared = self.root / "shared-claude" / "CLAUDE.md"
+        write(shared, "# shared")
+        config = base_config(
+            self.root,
+            settings={"enabled": True, "shared_claude_md": str(shared)},
+        )
+
+        units = discovery.discover(config)
+
+        self.assertIn(
+            (KIND_CLAUDE_MD, "shared/CLAUDE.md"),
+            [(u.kind, u.name) for u in units],
+        )
+
+    def test_absent_shared_claude_md_is_not_an_error(self):
+        """An unconfigured or missing shared file must not break discovery."""
+        accounts = self.root / "accounts"
+        write(accounts / "personal" / "CLAUDE.md", "# per-account")
+        config = base_config(
+            self.root,
+            settings={"enabled": True,
+                      "shared_claude_md": str(self.root / "nope" / "CLAUDE.md")},
+        )
+
+        units = discovery.discover(config)
+
+        self.assertNotIn(
+            "shared/CLAUDE.md", [u.name for u in units])
+
     def test_emits_settings_local_and_claude_md_per_account(self):
         accounts = self.root / "accounts"
         for account in ("personal", "work"):

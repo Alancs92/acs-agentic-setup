@@ -210,6 +210,19 @@ def _collect_settings(
                     Unit(kind, "%s/%s" % (account, filename), expand(path), True)
                 )
 
+    # The shared CLAUDE.md sits outside every account directory (~/.claude/CLAUDE.md)
+    # yet loads for every account, so the per-account walk above never saw the one
+    # instruction file that applies everywhere. Optional: absent key or missing file
+    # is silently fine, so an older config keeps working unchanged.
+    shared = spec.get("shared_claude_md")
+    if shared:
+        shared_path = Path(str(shared)).expanduser()
+        if shared_path.is_file():
+            units.append(
+                Unit(KIND_CLAUDE_MD, "shared/%s" % _CLAUDE_MD,
+                     expand(shared_path), True)
+            )
+
 
 def _collect_plugins(
     spec: Optional[dict],
