@@ -33,6 +33,26 @@ by explicit `add`/`remove` diffs — no copy-paste, no drift, reproducible.
 - **`scripts/apply_profile.py`** — pure resolver + safe applier (stdlib only).
 - **`claude-acs apply-profile`** — wrapper in `~/claude_code_toggle.sh`.
 
+## The shell entry point
+
+`claude-acs` itself is a zsh function, not a script. It lives at
+`~/claude_code_toggle.sh`, sourced from `.zshrc`, and **stays there** — it is used
+constantly and relocating it buys nothing.
+
+`shell/claude_code_toggle.sh` is a tracked copy, so the file has history and a
+recoverable version. It is a copy, not the live file: after editing the live one,
+refresh it.
+
+```bash
+cp ~/claude_code_toggle.sh setups/claude-code-account-profiles/shell/claude_code_toggle.sh
+```
+
+`scripts/test_toggle_shell.py` guards the three ways it has broken: a dispatch
+target that no longer exists, helpers named with a single underscore (Claude Code
+strips those from shell snapshots, so every subcommand fails inside Claude Code and
+nowhere else), and this copy drifting from the live file. The drift test skips
+where no live file exists, so it stays honest on other machines.
+
 ## Reproducing it
 
 ```bash
