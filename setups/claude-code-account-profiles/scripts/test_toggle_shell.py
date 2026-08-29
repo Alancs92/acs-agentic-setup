@@ -11,11 +11,13 @@ Stdlib unittest + zsh. Run: python3 test_toggle_shell.py
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRACKED = os.path.join(HERE, os.pardir, "shell", "claude_code_toggle.sh")
 LIVE = os.path.expanduser("~/claude_code_toggle.sh")
+REL = "demo-setup/scripts/thing.py"
 
 # Every claude-acs helper name the file mentions, defined or called.
 _HELPER = re.compile(r"\b(_{1,2}claude_acs_[A-Za-z0-9_]+)")
@@ -76,6 +78,71 @@ class ToggleSurvivesShellSnapshots(unittest.TestCase):
             "single-underscore helpers will be stripped from shell snapshots: %s"
             % offenders,
         )
+
+
+class WorktreeResolution(unittest.TestCase):
+    """Which worktree `claude-acs` runs code from, when several could serve.
+
+    The bare-repo layout puts every worktree beside its siblings, so a glob finds
+    the same setups/ path in all of them. Picking the first sorted match is
+    deterministic but arbitrary: it silently stops being the branch you think the
+    moment a worktree is created that sorts ahead of it.
+    """
+
+    def _repo(self, tmp, worktrees, default_branch="main"):
+        """Build repo/.bare plus worktrees, each a git repo on a named branch."""
+        repo = os.path.join(tmp, "repo")
+        bare = os.path.join(repo, ".bare")
+        os.makedirs(bare)
+        subprocess.run(["git", "init", "--bare", "-q", bare], check=True)
+        subprocess.run(
+            ["git", "-C", bare, "symbolic-ref", "refs/remotes/origin/HEAD",
+             "refs/heads/%s" % default_branch], check=True)
+        for name, branch in worktrees:
+            wt = os.path.join(repo, name)
+            script = os.path.join(wt, "setups", REL)
+            os.makedirs(os.path.dirname(script))
+            open(script, "w").close()
+            subprocess.run(["git", "init", "-q", wt], check=True)
+            subprocess.run(
+                ["git", "-C", wt, "symbolic-ref", "HEAD", "refs/heads/%s" % branch],
+                check=True)
+        return repo
+
+    def _resolve(self, repo):
+        result = subprocess.run(
+            ["zsh", "-c",
+             "source %s >/dev/null 2>&1; __claude_acs_setup_script %s" % (TRACKED, REL)],
+            capture_output=True, text=True, env=dict(os.environ, CLAUDE_ACS_REPO=repo),
+        )
+        return result.stdout.strip(), result.stderr.strip()
+
+    def test_prefers_the_default_branch_over_the_first_sorted_worktree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, [("aaa-other", "feat/other"), ("zzz-main", "main")])
+            out, _ = self._resolve(repo)
+            self.assertIn("zzz-main", out)
+            self.assertNotIn("aaa-other", out)
+
+    def test_falls_back_to_first_sorted_but_says_so(self):
+        """No worktree on the default branch is a real state, not an error.
+
+        It must still resolve -- refusing would break a working setup -- but
+        silently running an arbitrary branch's code is how this bites, so the
+        fallback announces itself on stderr.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, [("aaa-other", "feat/other"), ("bbb-third", "feat/third")])
+            out, err = self._resolve(repo)
+            self.assertIn("aaa-other", out)
+            self.assertIn("falling back", err)
+
+    def test_single_worktree_resolves_without_complaint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, [("only", "main")])
+            out, err = self._resolve(repo)
+            self.assertIn("only", out)
+            self.assertEqual(err, "")
 
 
 class TrackedCopyMatchesLive(unittest.TestCase):

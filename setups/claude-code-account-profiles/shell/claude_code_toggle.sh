@@ -232,11 +232,33 @@ __claude_acs_setup_script() {
     printf '%s\n' "$repo/setups/$rel"
     return 0
   fi
-  # 2. Bare-repo worktree pattern: scan sibling worktrees, sorted for determinism.
-  local candidate
+  # 2. Bare-repo worktree pattern. Sorted order is deterministic but arbitrary:
+  #    it runs whichever worktree sorts first, which silently stops being the
+  #    branch you think once a new worktree is added ahead of it alphabetically.
+  #    Prefer the worktree checked out on the repo's default branch, and only
+  #    fall back to sorted-first -- loudly -- when no worktree is on it.
+  local candidate first="" wt branch default_branch=""
+  default_branch="$(git -C "$repo/.bare" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"
+  default_branch="${default_branch#origin/}"
   for candidate in "$repo"/*/setups/"$rel"; do
-    [ -f "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+    [ -f "$candidate" ] || continue
+    [ -n "$first" ] || first="$candidate"
+    [ -n "$default_branch" ] || continue
+    wt="${candidate%/setups/$rel}"
+    branch="$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null)"
+    if [ "$branch" = "$default_branch" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
   done
+  if [ -n "$first" ]; then
+    if [ -n "$default_branch" ]; then
+      printf 'claude-acs: no worktree on %s provides %s; falling back to %s\n' \
+        "$default_branch" "$rel" "$first" >&2
+    fi
+    printf '%s\n' "$first"
+    return 0
+  fi
   return 1
 }
 
