@@ -17,10 +17,13 @@
 {"kind":"plugin_manifest","name":"installed_plugins","hash":"829a1d82f9a5d1b09e346d330f6c5f997e908b6ae336f6836325d4b2a6c5488f","created":"2026-08-24T18:27:21Z","bytes":2496,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"installed_plugins","hash":"4f532c2dec2a48bcf4417c640d8a29e089df3867809bd187d1b56fbb830160cc","created":"2026-08-25T01:17:39Z","bytes":2500,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"installed_plugins","hash":"2f0478a8ddbb99228b579119b448b5c4536a8246d0cc968a398e967b5e3faf32","created":"2026-08-27T23:29:01Z","bytes":2560,"files":1,"pruned":null}
+{"kind":"plugin_manifest","name":"installed_plugins","hash":"1202c7287a0beae196bce84a892c0f4ba6fa58ca788d6e6981e3f250728d0612","created":"2026-08-29T17:01:08Z","bytes":2596,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"known_marketplaces","hash":"932f878c6eace3dc3256f1918033fd17af3f42dd637716e97f1ddf3ade242aff","created":"2026-08-24T18:27:21Z","bytes":588,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"known_marketplaces","hash":"644ec4850566e91652b29bb058fc5d938ef079a78ca6d81e01e308f896cbebf6","created":"2026-08-25T01:17:39Z","bytes":584,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"known_marketplaces","hash":"489b384b4992c92f9a803caee5f1be6b95276fcff7e4e2101c0330b2d2191330","created":"2026-08-27T23:29:01Z","bytes":588,"files":1,"pruned":null}
+{"kind":"plugin_manifest","name":"known_marketplaces","hash":"39f744ba8b61fdbc43a83813ad442b5cff9b3d4aab19cdd1f4acc34ff4eb4e01","created":"2026-08-29T17:01:08Z","bytes":588,"files":1,"pruned":null}
 {"kind":"plugin_manifest","name":"plugin-catalog-cache","hash":"8d20898dfa41979ef81e8867a37609ff91f53fe7ac8c69d14d5eb487be95ea06","created":"2026-08-24T18:27:21Z","bytes":67232,"files":1,"pruned":null}
+{"kind":"script","name":"claude_code_toggle.sh","hash":"2d4c587a16a9e1b4226f0dd81128da5f84a7899d4cc932cadb468332e2dce31c","created":"2026-08-29T17:01:08Z","bytes":6384,"files":1,"pruned":null}
 {"kind":"settings","name":"harrison/settings.json","hash":"330b30970ec3113f3dd4886c62942e8e0c792a62f0d99c30d92b268ba67a5917","created":"2026-08-24T18:27:21Z","bytes":1456,"files":1,"pruned":null}
 {"kind":"settings","name":"harrison/settings.json","hash":"43c628ee23098692c249e275a0cf0b50a60c94c9664f7644b7d468197b67d72f","created":"2026-08-27T23:29:01Z","bytes":3124,"files":1,"pruned":null}
 {"kind":"settings","name":"harrison/settings.local.json","hash":"73647538923006784c92695bfdc8058737da783495ada9f21ad27182b7d399f2","created":"2026-08-24T18:27:21Z","bytes":260,"files":1,"pruned":null}
@@ -36,6 +39,7 @@
 {"kind":"skill","name":"ask-pensieve","hash":"1b2537f7d012080271aa5ebca55fc627f3425c7fcdeeaecfb26b5d85d023da02","created":"2026-08-24T18:27:21Z","bytes":2836,"files":2,"pruned":null}
 {"kind":"skill","name":"bootstrap-sync","hash":"f2105b286864e114e33a569b7ed2d60f1c27e1d49cb84d828d452617fd9ff7aa","created":"2026-08-24T18:27:21Z","bytes":792,"files":1,"pruned":null}
 {"kind":"skill","name":"brand-guidelines","hash":"ccfb86b5c0d1742c2f9a307ea1c73b0a4ac9a46e04ddf25eb84e38dea592ab5d","created":"2026-08-24T18:27:21Z","bytes":7704,"files":4,"pruned":null}
+{"kind":"skill","name":"brand-guidelines","hash":"4f3171582fb895a52d53def7211099d06d6ed0ead0a5c7104016d366392afa91","created":"2026-08-29T17:01:08Z","bytes":9144,"files":4,"pruned":null}
 {"kind":"skill","name":"chat-perspective-page","hash":"4740e9bf8f95fd06afe68a2b8fc2c15233c1a9bbfdb28d72dcca57a854afec3d","created":"2026-08-24T18:27:21Z","bytes":14132,"files":4,"pruned":null}
 {"kind":"skill","name":"cloudflare","hash":"85d01946ca72240aec492aa1a675c00ccd041b021dd918e07f13ddb8218536f2","created":"2026-08-24T18:27:21Z","bytes":332428,"files":320,"pruned":null}
 {"kind":"skill","name":"cloudflare-email-service","hash":"af1e65894bfd47acb26f4cbfe6d97eb443d8e5c9ec4e6e96d17cadb5b940fa7b","created":"2026-08-24T18:27:21Z","bytes":13624,"files":6,"pruned":null}
@@ -58,6 +62,7 @@
 {"kind":"skill","name":"engineer-activity-digest","hash":"82f0208587a680c74956309590b088d92fa0237c100c3fe43992e59f877f4b57","created":"2026-08-24T18:27:21Z","bytes":9284,"files":4,"pruned":null}
 {"kind":"skill","name":"engineer-eod-debrief","hash":"848f7bc0df0655f96ad59bb7a996a27c1891a103f41236756830eda66b33eb22","created":"2026-08-24T18:27:21Z","bytes":42484,"files":18,"pruned":null}
 {"kind":"skill","name":"engineer-morning-briefing","hash":"7d77ca691b0f72187dc2b575aa1217607753e93759a789aac7665c00707cff6e","created":"2026-08-24T18:27:21Z","bytes":27772,"files":11,"pruned":null}
+{"kind":"skill","name":"engineer-morning-briefing","hash":"542f82dfd702dc8625b1ddec8d173676899c805bd6eda70e8e4385f177d0622a","created":"2026-08-29T17:01:08Z","bytes":36344,"files":12,"pruned":null}
 {"kind":"skill","name":"engineer-standup","hash":"14e2d41436148bd3ed3c7355af2a078f2f67e9b4772b9689bb8b2b84aa845418","created":"2026-08-24T18:27:21Z","bytes":7352,"files":4,"pruned":null}
 {"kind":"skill","name":"gh-stack","hash":"566cdb3e4912fae374769c23782817058fce26d253119d4fbbe038cdb3d1fde1","created":"2026-08-24T18:27:21Z","bytes":11992,"files":4,"pruned":null}
 {"kind":"skill","name":"git-worktree-cleanup","hash":"aa4865a84bad32c4ef9916f7f170733f068e05ab7ea68a81da2726ac03ab1424","created":"2026-08-24T18:27:21Z","bytes":2148,"files":1,"pruned":null}
@@ -68,10 +73,12 @@
 {"kind":"skill","name":"learning-instructor","hash":"f0af7985be62b585efec0c39aa73b3dae8a6e4a218fe1b035acc1c3755434948","created":"2026-08-24T18:27:21Z","bytes":15968,"files":9,"pruned":null}
 {"kind":"skill","name":"new-work-pickup","hash":"8d5530138348c7a1abdfe61e1f675ea62def6dbbf983123e2b35625d51a86c74","created":"2026-08-24T18:27:21Z","bytes":12224,"files":7,"pruned":null}
 {"kind":"skill","name":"observability-audit","hash":"0253bb4e08a2b22d643adb7b29ceecde4804da0d29cb0d6dd4c46d25a243c545","created":"2026-08-24T18:27:21Z","bytes":30772,"files":12,"pruned":null}
+{"kind":"skill","name":"observability-audit","hash":"e420b20f89a4ae4263911e99d68d281c8f60701b0bf491ffe9a67c582005c2c2","created":"2026-08-29T17:01:08Z","bytes":41848,"files":13,"pruned":null}
 {"kind":"skill","name":"playwright-cli","hash":"c24ed9aabb3366123c5a2a52d951e158f0c5f2c70ea1ac5c276f92d90d16faf2","created":"2026-08-24T18:27:21Z","bytes":17068,"files":11,"pruned":null}
 {"kind":"skill","name":"playwright-generate-test","hash":"ada6ffac030f6dd304e4c601617d441b48955e67f50473a7800af80827d0edb8","created":"2026-08-24T18:27:21Z","bytes":488,"files":1,"pruned":null}
 {"kind":"skill","name":"pr-code-review","hash":"b6827942f00287e365205e13f7e8b53839fc41e9908e5f82564e7b15a6f3e304","created":"2026-08-24T18:27:21Z","bytes":6012,"files":3,"pruned":null}
 {"kind":"skill","name":"pr-review-advisor","hash":"b528fa56cf7bdf4b2a77b4c8b7877de53d79ecd0eed55c5bb6cf6edc11b64db7","created":"2026-08-24T18:27:21Z","bytes":19196,"files":11,"pruned":null}
+{"kind":"skill","name":"pr-review-advisor","hash":"b3d2bc0f69e1b875683c4fa618e81506e4a7e6e2b741b7fdf260ef655d093623","created":"2026-08-29T17:01:08Z","bytes":25712,"files":12,"pruned":null}
 {"kind":"skill","name":"sandbox-migrate-to-next","hash":"35badc97821230ae795e197a5e2f7f03de23869d836cb70207ed2b3da6e10e1d","created":"2026-08-24T18:27:21Z","bytes":3360,"files":1,"pruned":null}
 {"kind":"skill","name":"sandbox-next","hash":"907f4bfbd5229948388ee87552d5dec461f1a519d3cf4d0687478e87652fe850","created":"2026-08-24T18:27:21Z","bytes":4072,"files":3,"pruned":null}
 {"kind":"skill","name":"sandbox-sdk","hash":"742ad64ce5061e33256fcc70b575e9951e13b0b587d86e123b90ac0eb3e2d67c","created":"2026-08-24T18:27:21Z","bytes":3976,"files":3,"pruned":null}
@@ -81,6 +88,7 @@
 {"kind":"skill","name":"skill-creator","hash":"5cdc32ba344a757b3db9a3baff8997f37a49b2a47fe90e369253234ba32c7e10","created":"2026-08-24T18:27:21Z","bytes":6608,"files":1,"pruned":null}
 {"kind":"skill","name":"skill-improver","hash":"328401948a5df4b4a2d8c3812f6efcfaf3227ecb2d5e1a34b9aa0d7161e87cb3","created":"2026-08-24T18:27:21Z","bytes":20052,"files":7,"pruned":null}
 {"kind":"skill","name":"skill-improver","hash":"a0ed7d6cbec6654c16de6ad4596a7dfd00505c7cef45917d44a8de6e2e375df1","created":"2026-08-27T23:29:01Z","bytes":20152,"files":7,"pruned":null}
+{"kind":"skill","name":"skill-improver","hash":"f6cfcdcdc7ab57024f3f58b26502c3a1e7d92f06677cf53d81e8f1a00286c6af","created":"2026-08-29T17:01:08Z","bytes":20868,"files":7,"pruned":null}
 {"kind":"skill","name":"skill-sync","hash":"c6108b948d661682fa70c56e113196cc2780809059c56ae0fbcda056948064e2","created":"2026-08-24T18:27:21Z","bytes":3928,"files":2,"pruned":null}
 {"kind":"skill","name":"spark-habits","hash":"b73263af8b330037c86ecd58de8293e7bf442f3b8d78b80b79ef18bd5ab9c6a9","created":"2026-08-24T18:27:21Z","bytes":3680,"files":3,"pruned":null}
 {"kind":"skill","name":"tdd","hash":"7afac813ae2fc4d575b117a238b8893c40657357a0862affa5cef38823098a0e","created":"2026-08-24T18:27:21Z","bytes":5104,"files":6,"pruned":null}
@@ -98,6 +106,7 @@
 {"kind":"skill","name":"textx-pr-description","hash":"b503b7981f2a4030911965c643fe4b1c17d15645cf04790812b9b0ed94feadbd","created":"2026-08-24T18:27:21Z","bytes":7984,"files":7,"pruned":null}
 {"kind":"skill","name":"textx-pr-description-v2f","hash":"d6b84965b4c19285abcd08553f3ab26ab0a76329ed8583bd439b3b3ea7346032","created":"2026-08-24T18:27:21Z","bytes":400,"files":1,"pruned":null}
 {"kind":"skill","name":"textx-repo-research","hash":"ca106684af6a0eb89e1239ab579112eb5e85ec907a42e672de2a46d5ebb21ec2","created":"2026-08-24T18:27:21Z","bytes":6180,"files":2,"pruned":null}
+{"kind":"skill","name":"textx-repo-research","hash":"ee9da574cdf85f20ac1deea4cff83cc9407d2835df7b1456ef137b8e34afead9","created":"2026-08-29T17:01:08Z","bytes":15328,"files":3,"pruned":null}
 {"kind":"skill","name":"textx-verify-confluence-publish","hash":"f091fc0599f2d41a01be8394e8c29377575a486e2942404b3b2e07dd361187f1","created":"2026-08-24T18:27:21Z","bytes":10352,"files":10,"pruned":null}
 {"kind":"skill","name":"textx-verify-debug","hash":"7d1fc580c262aabbac15d8d9f0cfc450ea42271a4b685e3d68a999ef8b3fce62","created":"2026-08-24T18:27:21Z","bytes":5288,"files":2,"pruned":null}
 {"kind":"skill","name":"textx-verify-plan-builder","hash":"0ac6f9c611d65e76c5bec1728e31de66462ac98e06f199ec459ab9750fe5d9cf","created":"2026-08-24T18:27:21Z","bytes":9404,"files":3,"pruned":null}
@@ -106,6 +115,7 @@
 {"kind":"skill","name":"ticket-analysis","hash":"308913eacaf681a03c4d2c7263748756de9c65653c139e91b4a7f1f30097d5fa","created":"2026-08-24T18:27:21Z","bytes":31196,"files":13,"pruned":null}
 {"kind":"skill","name":"tide-sync","hash":"74727c65d97afe7311ddb09d8445fbb0023beb6329d715c64ce6e2a22a0d91fc","created":"2026-08-24T18:27:21Z","bytes":1796,"files":1,"pruned":null}
 {"kind":"skill","name":"tide-triage","hash":"ee3f95ab5edb49ae1724e04151e2a544a8ff2ee148f541e8f005310f9cff6874","created":"2026-08-24T18:27:21Z","bytes":12604,"files":3,"pruned":null}
+{"kind":"skill","name":"tide-triage","hash":"dd2fe4528c8dccc45aa6c739b0c83ef4d82146df1317ce4d654773d5c67fc995","created":"2026-08-29T17:01:08Z","bytes":14624,"files":4,"pruned":null}
 {"kind":"skill","name":"timesheet-json-logger","hash":"fa88918aa613960f56f969f0a84af74e3b927b10ddbd011ab4e6323e3b430cf7","created":"2026-08-24T18:27:21Z","bytes":18472,"files":8,"pruned":null}
 {"kind":"skill","name":"tracker-sync","hash":"9e2305bfcc81870b01381e6c37e944d2f9dc55e1529913bde8e1152bfc980643","created":"2026-08-24T18:27:21Z","bytes":2404,"files":1,"pruned":null}
 {"kind":"skill","name":"triage-checkpoint","hash":"5be2efffcc8cf9bef82f0ad38ad08515ddc098d1897702a7b1b031655cd94448","created":"2026-08-24T18:27:21Z","bytes":14348,"files":8,"pruned":null}

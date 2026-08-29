@@ -32,6 +32,12 @@
       "enabled": true,
       "path": "~/.claude/plugins",
       "mode": "manifests"
+    },
+    "scripts": {
+      "enabled": true,
+      "paths": [
+        "~/claude_code_toggle.sh"
+      ]
     }
   },
   "exclude_globs": [

@@ -76,7 +76,7 @@ SCHEMA_SQL = """
 -- A unit is any single backed-up thing, identified by (kind, name).
 CREATE TABLE units (
   id             INTEGER PRIMARY KEY,
-  kind           TEXT NOT NULL,   -- skill|command|agent|hook|settings|claude_md|plugin_manifest
+  kind           TEXT NOT NULL,   -- skill|command|agent|hook|settings|claude_md|plugin_manifest|script
   name           TEXT NOT NULL,
   source_path    TEXT NOT NULL,   -- resolved real path, symlinks followed
   first_seen_utc TEXT NOT NULL,

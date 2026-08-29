@@ -21,6 +21,7 @@ from backup_types import (
     KIND_COMMAND,
     KIND_HOOK,
     KIND_PLUGIN_MANIFEST,
+    KIND_SCRIPT,
     KIND_SETTINGS,
     KIND_SKILL,
 )
@@ -53,6 +54,7 @@ def base_config(root: Path, **overrides) -> dict:
                 "path": str(root / "plugins"),
                 "mode": "manifests",
             },
+            "scripts": {"enabled": False, "paths": []},
         },
         "exclude_globs": [
             "**/.git/**",
@@ -464,6 +466,82 @@ class TestPlugins(TempTreeCase):
         config = base_config(self.root, plugins={"enabled": True})
 
         self.assertEqual(discovery.discover(config), [])
+
+
+# --- scripts ----------------------------------------------------------------
+class TestScripts(unittest.TestCase):
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def _config(self, paths):
+        return base_config(self.root, scripts={"enabled": True, "paths": paths})
+
+    def test_each_configured_path_becomes_a_unit_named_by_basename(self):
+        """Loose scripts live wherever their loader expects them, not in one tree.
+
+        ~/claude_code_toggle.sh is sourced from .zshrc by absolute path, so it
+        cannot be relocated into a scripts/ directory the way skills or hooks are
+        collected. The source therefore takes explicit paths.
+        """
+        one = self.root / "claude_code_toggle.sh"
+        two = self.root / "nested" / "other_helper.sh"
+        write(one, "# one")
+        write(two, "# two")
+
+        units = discovery.discover(self._config([str(one), str(two)]))
+
+        self.assertEqual(
+            sorted((u.kind, u.name) for u in units),
+            [(KIND_SCRIPT, "claude_code_toggle.sh"),
+             (KIND_SCRIPT, "other_helper.sh")],
+        )
+        self.assertTrue(all(u.is_file for u in units))
+
+    def test_missing_path_is_reported_not_fatal(self):
+        present = self.root / "here.sh"
+        write(present, "# here")
+
+        units, problems = discovery.discover_with_problems(
+            self._config([str(present), str(self.root / "gone.sh")]))
+
+        self.assertEqual(names(units, KIND_SCRIPT), ["here.sh"])
+        self.assertTrue(any("gone.sh" in p for p in problems), problems)
+
+    def test_a_directory_is_refused_rather_than_walked(self):
+        """`paths` means files. A directory here is a config mistake, and walking
+        it would quietly back up something far larger than intended."""
+        directory = self.root / "a_dir"
+        directory.mkdir()
+
+        units, problems = discovery.discover_with_problems(
+            self._config([str(directory)]))
+
+        self.assertEqual(names(units, KIND_SCRIPT), [])
+        self.assertTrue(any("a_dir" in p for p in problems), problems)
+
+    def test_colliding_basenames_are_reported_not_silently_dropped(self):
+        """Units are keyed by (kind, name); two files sharing a basename would
+        collide and one would vanish without a word."""
+        first = self.root / "a" / "dup.sh"
+        second = self.root / "b" / "dup.sh"
+        write(first, "# a")
+        write(second, "# b")
+
+        units, problems = discovery.discover_with_problems(
+            self._config([str(first), str(second)]))
+
+        self.assertEqual(names(units, KIND_SCRIPT), ["dup.sh"])
+        self.assertTrue(any("dup.sh" in p for p in problems), problems)
+
+    def test_disabled_source_emits_nothing(self):
+        script = self.root / "x.sh"
+        write(script, "# x")
+        config = base_config(self.root, scripts={"enabled": False,
+                                                 "paths": [str(script)]})
+        self.assertEqual(names(discovery.discover(config), KIND_SCRIPT), [])
 
 
 # --- settings ---------------------------------------------------------------

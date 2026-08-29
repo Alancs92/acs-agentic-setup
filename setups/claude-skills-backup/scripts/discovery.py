@@ -42,6 +42,7 @@ from backup_types import (
     KIND_COMMAND,
     KIND_HOOK,
     KIND_PLUGIN_MANIFEST,
+    KIND_SCRIPT,
     KIND_SETTINGS,
     KIND_SKILL,
     Unit,
@@ -96,6 +97,7 @@ def discover_with_problems(config: dict) -> Tuple[List[Unit], List[str]]:
         _collect_dir_source(sources.get(key), key, kind, units, problems, matcher)
     _collect_settings(sources.get("settings"), units, problems)
     _collect_plugins(sources.get("plugins"), units, problems, matcher)
+    _collect_scripts(sources.get("scripts"), units, problems)
 
     units.sort(key=lambda unit: (unit.kind, unit.name))
     return units, problems
@@ -222,6 +224,38 @@ def _collect_settings(
                 Unit(KIND_CLAUDE_MD, "shared/%s" % _CLAUDE_MD,
                      expand(shared_path), True)
             )
+
+
+def _collect_scripts(
+    spec: Optional[dict], units: List[Unit], problems: List[str]
+) -> None:
+    """Loose scripts, one unit per configured file path.
+
+    Unlike skills or hooks these are not a directory of siblings: each lives
+    wherever its loader expects it (~/claude_code_toggle.sh is sourced from
+    .zshrc by absolute path), so the source takes explicit paths rather than a
+    root to walk. Units are named by basename, which is what makes a collision
+    possible -- and reported rather than silently resolved.
+    """
+    if not _enabled(spec):
+        return
+    seen = {}
+    for raw in spec.get("paths") or []:
+        path = Path(str(raw)).expanduser()
+        if path.is_dir():
+            problems.append(
+                "scripts: expected a file, got a directory: %s" % path)
+            continue
+        if not path.is_file():
+            problems.append("scripts: missing: %s" % path)
+            continue
+        if path.name in seen:
+            problems.append(
+                "scripts: duplicate basename %s; kept %s, ignored %s"
+                % (path.name, seen[path.name], path))
+            continue
+        seen[path.name] = path
+        units.append(Unit(KIND_SCRIPT, path.name, expand(path), True))
 
 
 def _collect_plugins(

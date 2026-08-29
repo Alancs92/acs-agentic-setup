@@ -31,6 +31,7 @@ KIND_HOOK = "hook"
 KIND_SETTINGS = "settings"
 KIND_CLAUDE_MD = "claude_md"
 KIND_PLUGIN_MANIFEST = "plugin_manifest"
+KIND_SCRIPT = "script"
 
 ALL_KINDS = (
     KIND_SKILL,
@@ -40,6 +41,7 @@ ALL_KINDS = (
     KIND_SETTINGS,
     KIND_CLAUDE_MD,
     KIND_PLUGIN_MANIFEST,
+    KIND_SCRIPT,
 )
 
 # --- run statuses -----------------------------------------------------------
