@@ -36,7 +36,11 @@
     "scripts": {
       "enabled": true,
       "paths": [
-        "~/claude_code_toggle.sh"
+        "~/claude_code_toggle.sh",
+        "~/.local/share/ai-tracker-pings/ai-tracker-ping.py",
+        "~/.local/bin/claude-mserve",
+        "~/.local/bin/copilot",
+        "~/.local/bin/copilot-acs.md"
       ]
     }
   },

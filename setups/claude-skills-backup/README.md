@@ -133,8 +133,21 @@ actually authored. Add it to `exclude_globs` if the churn bothers you.
 directory:
 
 ```json
-"scripts": { "enabled": true, "paths": ["~/claude_code_toggle.sh"] }
+"scripts": {
+  "enabled": true,
+  "paths": ["~/claude_code_toggle.sh", "~/.local/bin/claude-mserve", "..."]
+}
 ```
+
+What belongs here is a hand-authored script with **no other copy**. Deliberately
+excluded:
+
+| Not backed up | Why |
+|---|---|
+| `~/.local/bin/hai-script`, `textx-tix`, `tide` | symlinks into git repos — history already, and `hai-script` is pushed to GitHub |
+| `gs`, `hermes`, `cursor` | installer-generated shims; a reinstall regenerates them |
+| `tracker-capture` | already lives inside OneDrive |
+| `node`, `npm`, `poetry`, `ccusage`, … | installed tools, refetchable |
 
 They are the odd source out because they are not siblings in one tree — each
 lives wherever its loader expects it. `~/claude_code_toggle.sh` is sourced from
