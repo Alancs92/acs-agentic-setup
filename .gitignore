@@ -10,3 +10,10 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Resolved Impeccable engine — provenance is engine.lock.json, not the binary
+.impeccable/
+
+# Python bytecode
+__pycache__/
+*.pyc
