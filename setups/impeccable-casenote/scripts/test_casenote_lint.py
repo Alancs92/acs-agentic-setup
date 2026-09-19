@@ -68,3 +68,42 @@ class TestJsonShape(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTokenRules(unittest.TestCase):
+    def assert_flags(self, rule_id, fixture_name):
+        path = FIXTURES / fixture_name
+        findings = casenote_lint.scan_text(path.read_text(), str(path))
+        ids = [f.rule for f in findings]
+        self.assertIn(rule_id, ids, f"{fixture_name} did not trip {rule_id}: {ids}")
+
+    def test_site_token_names(self):
+        self.assert_flags("site-token-names", "site_tokens_bad.html")
+
+    def test_raw_hex_outside_root(self):
+        self.assert_flags("raw-hex", "raw_hex_bad.html")
+
+    def test_pure_black_on_white(self):
+        self.assert_flags("pure-black-on-white", "pure_black_bad.html")
+
+    def test_accent_bright_as_mark(self):
+        self.assert_flags("accent-bright-as-mark", "accent_bright_bad.html")
+
+    def test_status_as_series(self):
+        self.assert_flags("status-as-series", "status_series_bad.html")
+
+    def test_seventh_series_colour(self):
+        self.assert_flags("seventh-series-colour", "seventh_series_bad.html")
+
+    def test_sixth_series_colour_is_legal(self):
+        """Six categories is the ceiling; the seventh is the violation."""
+        text = "<style>:root{--series-1:#0d9488;--series-6:#77712f;}</style>"
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("seventh-series-colour", ids)
+
+    def test_accent_bright_in_gradient_is_legal(self):
+        """--accent-bright is the gradient partner; that use is correct."""
+        text = ("<style>.hairline{background:linear-gradient(90deg,"
+                "var(--accent),var(--accent-bright));}</style>")
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("accent-bright-as-mark", ids)

@@ -71,6 +71,123 @@ def scan_paths(paths):
     return findings, unreadable
 
 
+
+# ---------------------------------------------------------------------------
+# Token and colour rules. Every `source` names the brands/alan-personal.md
+# section it encodes, so a brand change that invalidates a rule is greppable.
+# ---------------------------------------------------------------------------
+
+HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+SITE_TOKENS = re.compile(r"--(?:swatch-\d+|life-\d+|dot-twinkle)\b")
+STATUS_TOKENS = re.compile(r"var\(\s*--(good|warning|critical)\s*\)")
+MARK_PROPS = re.compile(
+    r"\b(fill|stroke|color|border(?:-[a-z]+)?-color)\s*:\s*([^;}\n]+)", re.I)
+BRAND = "brands/alan-personal.md"
+
+
+def _token_blocks(text):
+    """Character ranges of blocks that legitimately define raw token values:
+    :root{...} and [data-theme=...]{...}. Everything else must use var()."""
+    spans = []
+    for m in re.finditer(r"(:root[^{]*|\[data-theme[^{]*)\{", text):
+        depth, i = 0, m.end() - 1
+        while i < len(text):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    spans.append((m.start(), i))
+                    break
+            i += 1
+    return spans
+
+
+def _in_spans(index, spans):
+    return any(lo <= index <= hi for lo, hi in spans)
+
+
+@rule("site-token-names", "error",
+      "The site's internal token names name site machinery, not this brand. "
+      "Use --series-1..5 and --series-other.",
+      f"{BRAND} > NOT this brand (denylist)")
+def site_token_names(text, path):
+    return [make(site_token_names, path, line_of(text, m.start()), m.group(0))
+            for m in SITE_TOKENS.finditer(text)]
+
+
+@rule("raw-hex", "error",
+      "Colour comes from tokens, always. A hex literal outside a :root or "
+      "[data-theme] block bypasses the palette.",
+      f"{BRAND} > NOT this brand (denylist)")
+def raw_hex(text, path):
+    spans = _token_blocks(text)
+    return [make(raw_hex, path, line_of(text, m.start()), m.group(0))
+            for m in HEX.finditer(text) if not _in_spans(m.start(), spans)]
+
+
+@rule("pure-black-on-white", "error",
+      "--ink on --paper is the pairing. Pure #000 on #fff is not this brand.",
+      f"{BRAND} > NOT this brand (denylist)")
+def pure_black_on_white(text, path):
+    out = []
+    for m in re.finditer(r"\{[^}]*\}", text):
+        block = m.group(0)
+        black = re.search(r"color\s*:\s*(#(?:000|000000)|black)\b", block, re.I)
+        white = re.search(r"background(?:-color)?\s*:\s*(#(?:fff|ffffff)|white)\b",
+                          block, re.I)
+        if black and white:
+            out.append(make(pure_black_on_white, path,
+                            line_of(text, m.start() + black.start()), black.group(0)))
+    return out
+
+
+@rule("accent-bright-as-mark", "error",
+      "--accent-bright measures 2.49:1 on light paper. Gradient partner only — "
+      "never a line, mark, label or series colour on light ground.",
+      f"{BRAND} > Colors")
+def accent_bright_as_mark(text, path):
+    out = []
+    for m in MARK_PROPS.finditer(text):
+        value = m.group(2)
+        if "gradient(" in value:
+            continue
+        if "--accent-bright" in value or re.search(r"#10b981\b", value, re.I):
+            out.append(make(accent_bright_as_mark, path,
+                            line_of(text, m.start()), m.group(0)))
+    return out
+
+
+@rule("status-as-series", "error",
+      "Status colours are reserved. They are never series colours and never brand.",
+      f"{BRAND} > Status colours")
+def status_as_series(text, path):
+    out = []
+    for m in MARK_PROPS.finditer(text):
+        if STATUS_TOKENS.search(m.group(2)):
+            out.append(make(status_as_series, path,
+                            line_of(text, m.start()), m.group(0)))
+    for m in re.finditer(r"--series-\d+\s*:\s*([^;}\n]+)", text):
+        if STATUS_TOKENS.search(m.group(1)):
+            out.append(make(status_as_series, path,
+                            line_of(text, m.start()), m.group(0)))
+    return out
+
+
+@rule("seventh-series-colour", "error",
+      "Six categories is the ceiling. Past that: facet, or switch to a "
+      "sequential scheme. 'Other' is the neutral residual, not slot 6.",
+      f"{BRAND} > Series palette")
+def seventh_series_colour(text, path):
+    seen = {}
+    for m in re.finditer(r"--series-(\d+)\s*:", text):
+        seen.setdefault(int(m.group(1)), m.start())
+    # Six categories is the ceiling; --series-6 is legal. The SEVENTH is not.
+    extra = sorted(n for n in seen if n >= 7)
+    return [make(seventh_series_colour, path, line_of(text, seen[n]),
+                 f"--series-{n}") for n in extra]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("paths", nargs="+")
