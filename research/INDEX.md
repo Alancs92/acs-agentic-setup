@@ -12,3 +12,4 @@ forward to it from the note and mark the note's status `concluded`.
 |---|---|---|
 | [`baseline-metric-methodology.md`](baseline-metric-methodology.md) | 2026-07-24 | open (living reference) — how to measure CC token usage + trustworthy before/after methodology |
 | [`token-usage-audit.md`](token-usage-audit.md) | 2026-07-24 | open — plugin-pruning audit; baseline captured, treatment pending |
+| [`impeccable-design-skill.md`](impeccable-design-skill.md) | 2026-09-18 | open — third-party design skill evaluated by detector only; keep scoped (detector now, plugin per-project later), nothing installed |
