@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3 standard library only (`subprocess`, `tarfile`, `hashlib`, `base64`, `json`, `re`, `argparse`, `unittest`). `npm` is invoked as a subprocess for engine acquisition — it is already required to run Impeccable at all. No pip installs, no third-party imports.
 
+**Status:** complete — all six tasks implemented and committed 2026-09-20 (`b195eca`..`4ee8cfd`). 35 tests passing.
+
 **Spec:** `setups/impeccable-casenote/design.md` (read it before starting — every task below argues from it)
 
 ## Global Constraints
@@ -58,7 +60,7 @@ RULES = {}  # rule_id -> function, populated by the @rule decorator
 - Consumes: nothing (first task).
 - Produces: `load_lock(path) -> dict`, `verify_binary(path, expected_sha256) -> bool`, `sha256_file(path) -> str`, `npm_integrity(pkg, version) -> str`, `verify_tarball(data, integrity) -> bool`, `platform_target() -> str`, `resolve(lock, dest_dir, *, npm_runner=subprocess.run) -> Path`. Nothing later depends on these; this task is self-contained.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # scripts/test_fetch_engine.py
@@ -133,12 +135,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd setups/impeccable-casenote/scripts && uv run --with pytest python -m pytest test_fetch_engine.py -q`
 Expected: FAIL — `ModuleNotFoundError: No module named 'fetch_engine'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 #!/usr/bin/env python3
@@ -287,12 +289,12 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd setups/impeccable-casenote/scripts && uv run --with pytest python -m pytest test_fetch_engine.py -q`
 Expected: PASS (9 tests)
 
-- [ ] **Step 5: Generate the real lock file**
+- [x] **Step 5: Generate the real lock file**
 
 Run the resolver once against the live registry, then record what it produced:
 
@@ -320,7 +322,7 @@ print(fetch_engine.sha256_file(b))"
 Verify the re-run is a no-op (no second download) and that corrupting the
 binary makes it re-fetch.
 
-- [ ] **Step 6: Gitignore the binary, commit**
+- [x] **Step 6: Gitignore the binary, commit**
 
 ```bash
 cd /Users/alan.soewargo@harrison.ai/repos/acs-agentic-setup/feat-claude-code-usage-stats
@@ -348,7 +350,7 @@ git commit -m "feat(impeccable-casenote): pinned engine acquisition with provena
 - Consumes: nothing from Task 1 (the two tools are independent).
 - Produces: `Finding` namedtuple (`rule severity file line snippet description source`); `@rule(rule_id, severity, description, source)` decorator registering into `RULES`; `scan_text(text, path) -> list[Finding]`; `scan_paths(paths) -> tuple[list[Finding], list[str]]` returning findings and unreadable paths; `main(argv) -> int`. Tasks 3-5 add rule functions only and change nothing here.
 
-- [ ] **Step 1: Write the clean fixture**
+- [x] **Step 1: Write the clean fixture**
 
 This is the regression anchor — it must stay at zero findings forever. It is
 the same specimen that produced Evidence 1 in `design.md`.
@@ -387,7 +389,7 @@ a{color:var(--accent);}
 </body></html>
 ```
 
-- [ ] **Step 2: Write the failing core tests**
+- [x] **Step 2: Write the failing core tests**
 
 ```python
 # scripts/test_casenote_lint.py
@@ -459,12 +461,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `cd setups/impeccable-casenote/scripts && uv run --with pytest python -m pytest test_casenote_lint.py -q`
 Expected: FAIL — `ModuleNotFoundError: No module named 'casenote_lint'`
 
-- [ ] **Step 4: Write the core implementation**
+- [x] **Step 4: Write the core implementation**
 
 ```python
 #!/usr/bin/env python3
@@ -568,7 +570,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd setups/impeccable-casenote/scripts && uv run --with pytest python -m pytest test_casenote_lint.py -q`
 Expected: PASS. `test_json_shape` and the findings-related exit-code tests rely
@@ -576,7 +578,7 @@ on the `site-token-names` rule, which arrives in Task 3 — until then they FAIL
 Implement Task 3's `site-token-names` rule first if you want a green bar here,
 or accept these three as red until Task 3 closes them.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add setups/impeccable-casenote/scripts/casenote_lint.py \
@@ -598,7 +600,7 @@ git commit -m "feat(impeccable-casenote): lint core — finding model, registry,
 - Consumes: `@rule`, `Finding`, `make`, `line_of` from Task 2.
 - Produces: rule ids `site-token-names`, `raw-hex`, `pure-black-on-white`, `accent-bright-as-mark`, `status-as-series`, `seventh-series-colour`. No new shared functions.
 
-- [ ] **Step 1: Write the six failing tests**
+- [x] **Step 1: Write the six failing tests**
 
 ```python
 # append to scripts/test_casenote_lint.py
@@ -628,7 +630,7 @@ class TestTokenRules(unittest.TestCase):
         self.assert_flags("seventh-series-colour", "seventh_series_bad.html")
 ```
 
-- [ ] **Step 2: Write the six fixtures, each violating exactly one rule**
+- [x] **Step 2: Write the six fixtures, each violating exactly one rule**
 
 ```bash
 cd setups/impeccable-casenote/scripts/fixtures
@@ -671,12 +673,12 @@ cat > seventh_series_bad.html <<'EOF'
 EOF
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -k TokenRules -q`
 Expected: FAIL — six failures, each "did not trip <rule>".
 
-- [ ] **Step 4: Implement the six rules**
+- [x] **Step 4: Implement the six rules**
 
 ```python
 # append to scripts/casenote_lint.py, above main()
@@ -792,14 +794,14 @@ def seventh_series_colour(text, path):
                  f"--series-{n}") for n in extra]
 ```
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -q`
 Expected: PASS, including the clean-fixture anchor and the three Task 2 tests
 that were red. If `casenote_clean.html` now trips `raw-hex`, the `_token_blocks`
 span logic is wrong — fix that, never the fixture.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add setups/impeccable-casenote/scripts/casenote_lint.py \
@@ -821,7 +823,7 @@ git commit -m "feat(impeccable-casenote): token and colour denylist rules"
 - Consumes: `@rule`, `make`, `line_of` from Task 2.
 - Produces: rule ids `light-dark-with-theme-stamp`, `theme-on-root`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # append to scripts/test_casenote_lint.py
@@ -845,7 +847,7 @@ class TestThemingRules(unittest.TestCase):
         self.assertNotIn("light-dark-with-theme-stamp", ids)
 ```
 
-- [ ] **Step 2: Write the fixtures**
+- [x] **Step 2: Write the fixtures**
 
 ```bash
 cd setups/impeccable-casenote/scripts/fixtures
@@ -861,12 +863,12 @@ cat > theme_on_root_bad.html <<'EOF'
 EOF
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -k ThemingRules -q`
 Expected: FAIL — two "did not trip" failures; `test_light_dark_alone_is_not_flagged` already passes.
 
-- [ ] **Step 4: Implement the two rules**
+- [x] **Step 4: Implement the two rules**
 
 ```python
 # append to scripts/casenote_lint.py, above main()
@@ -898,13 +900,13 @@ def theme_on_root(text, path):
             for m in pattern.finditer(text)]
 ```
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -q`
 Expected: PASS. The clean fixture stamps `data-theme` in CSS selectors but never
 writes it from JS, and uses no `light-dark()` — it must stay at zero.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add setups/impeccable-casenote/scripts/casenote_lint.py \
@@ -926,7 +928,7 @@ git commit -m "feat(impeccable-casenote): theming denylist rules"
 - Consumes: `@rule`, `make`, `line_of` from Task 2.
 - Produces: rule id `svg-no-min-width`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # append to scripts/test_casenote_lint.py
@@ -948,7 +950,7 @@ class TestSvgRule(unittest.TestCase):
         self.assertNotIn("svg-no-min-width", ids)
 ```
 
-- [ ] **Step 2: Write the fixture**
+- [x] **Step 2: Write the fixture**
 
 ```bash
 cat > setups/impeccable-casenote/scripts/fixtures/svg_min_width_bad.html <<'EOF'
@@ -956,12 +958,12 @@ cat > setups/impeccable-casenote/scripts/fixtures/svg_min_width_bad.html <<'EOF'
 EOF
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -k SvgRule -q`
 Expected: FAIL on `test_fixed_viewbox_without_min_width`; the other two pass already.
 
-- [ ] **Step 4: Implement the rule**
+- [x] **Step 4: Implement the rule**
 
 ```python
 # append to scripts/casenote_lint.py, above main()
@@ -991,12 +993,12 @@ def svg_no_min_width(text, path):
 > without cascade resolution would produce false positives, and a design linter
 > that cries wolf gets ignored.
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `uv run --with pytest python -m pytest test_casenote_lint.py -q`
 Expected: PASS — all rules, all exit codes, clean fixture still at zero.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add setups/impeccable-casenote/scripts/casenote_lint.py \
@@ -1023,7 +1025,7 @@ git commit -m "feat(impeccable-casenote): SVG sizing denylist rule"
 **Interfaces:**
 - Consumes: the CLI surfaces of `fetch_engine.py` and `casenote_lint.py` from Tasks 1-5. Documentation only; produces no code.
 
-- [ ] **Step 1: Write the config template**
+- [x] **Step 1: Write the config template**
 
 ```json
 {
@@ -1041,7 +1043,7 @@ git commit -m "feat(impeccable-casenote): SVG sizing denylist rule"
 }
 ```
 
-- [ ] **Step 2: Write the three INDEX files**
+- [x] **Step 2: Write the three INDEX files**
 
 ```bash
 cd setups/impeccable-casenote
@@ -1080,7 +1082,7 @@ Test fixtures for `casenote_lint.py`.
 EOF
 ```
 
-- [ ] **Step 3: Write the README**
+- [x] **Step 3: Write the README**
 
 Use `templates/setup-template.md` as the skeleton. It must contain:
 - The four drivers and the authority-model table from `design.md`.
@@ -1104,7 +1106,7 @@ exit 0
 - The `dataviz` / `validate_palette.js` known gap, verbatim from `design.md`.
 - A "Not for Harrison.ai repos" line, pending the supply-chain review.
 
-- [ ] **Step 4: Flip the statuses**
+- [x] **Step 4: Flip the statuses**
 
 - `setups/impeccable-casenote/INDEX.md`: remove "**Status: designed, not yet
   implemented.** Only `design.md` exists so far." and list the real files.
@@ -1113,13 +1115,13 @@ exit 0
   `concluded → promoted to setups/impeccable-casenote`; add the forward link
   per the `research/INDEX.md` convention; update `research/INDEX.md`'s row too.
 
-- [ ] **Step 5: Add the CHANGELOG entry**
+- [x] **Step 5: Add the CHANGELOG entry**
 
 Append under a new dated heading, newest first: the setup went from designed to
 implemented; name the two tools, the rule count, and that the engine is pinned
 with committed provenance.
 
-- [ ] **Step 6: Verify end-to-end, then commit**
+- [x] **Step 6: Verify end-to-end, then commit**
 
 ```bash
 cd setups/impeccable-casenote
