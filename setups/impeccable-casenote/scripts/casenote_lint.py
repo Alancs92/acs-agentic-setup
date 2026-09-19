@@ -224,6 +224,38 @@ def theme_on_root(text, path):
             for m in THEME_ON_ROOT.finditer(text)]
 
 
+
+# ---------------------------------------------------------------------------
+# SVG sizing rule.
+#
+# Scope note: this checks the inline <svg> tag only. An SVG sized from a
+# stylesheet rule elsewhere in the file is not caught — deliberately. Resolving
+# the cascade is the judgment case design.md excluded, and widening this without
+# it would produce false positives. A design linter that cries wolf gets ignored.
+# ---------------------------------------------------------------------------
+
+
+@rule("svg-no-min-width", "error",
+      "A fixed-viewBox SVG at width:100% with no min-width scales its labels "
+      "with the container and goes illegible on a phone. Give it a min-width "
+      "(~600px) and let its wrapper scroll.",
+      f"{BRAND} > Infographics & diagrams")
+def svg_no_min_width(text, path):
+    out = []
+    for m in re.finditer(r"<svg\b[^>]*>", text, re.I):
+        tag = m.group(0)
+        if "viewbox" not in tag.lower():
+            continue
+        # Matches both the style form (width:100%) and the attribute form
+        # (width="100%").
+        if not re.search(r"width\s*[:=]\s*[\"']?\s*100%", tag, re.I):
+            continue
+        if re.search(r"min-width", tag, re.I):
+            continue
+        out.append(make(svg_no_min_width, path, line_of(text, m.start()), tag))
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("paths", nargs="+")

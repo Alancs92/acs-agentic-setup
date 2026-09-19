@@ -140,3 +140,26 @@ class TestThemingRules(unittest.TestCase):
                 "<script>panel.dataset.theme='dark';</script>")
         ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
         self.assertIn("light-dark-with-theme-stamp", ids)
+
+
+class TestSvgRule(unittest.TestCase):
+    def test_fixed_viewbox_without_min_width(self):
+        path = FIXTURES / "svg_min_width_bad.html"
+        ids = [f.rule for f in
+               casenote_lint.scan_text(path.read_text(), str(path))]
+        self.assertIn("svg-no-min-width", ids)
+
+    def test_min_width_present_is_clean(self):
+        text = '<svg viewBox="0 0 600 300" style="width:100%;min-width:600px"></svg>'
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("svg-no-min-width", ids)
+
+    def test_svg_without_viewbox_is_ignored(self):
+        text = '<svg style="width:100%"></svg>'
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("svg-no-min-width", ids)
+
+    def test_svg_width_attribute_form(self):
+        text = '<svg viewBox="0 0 600 300" width="100%"></svg>'
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertIn("svg-no-min-width", ids)
