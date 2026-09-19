@@ -14,6 +14,7 @@ Thumbs.db
 # Resolved Impeccable engine — provenance is engine.lock.json, not the binary
 .impeccable/
 
-# Python bytecode
+# Python bytecode and test caches
 __pycache__/
 *.pyc
+.pytest_cache/
