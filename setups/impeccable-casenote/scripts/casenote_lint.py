@@ -188,6 +188,42 @@ def seventh_series_colour(text, path):
                  f"--series-{n}") for n in extra]
 
 
+
+# ---------------------------------------------------------------------------
+# Theming rules.
+# ---------------------------------------------------------------------------
+
+THEME_STAMP = re.compile(r"data-theme|dataset\s*\.\s*theme")
+THEME_ON_ROOT = re.compile(
+    r"documentElement\s*\.\s*setAttribute\s*\(\s*['\"]data-theme['\"]"
+    r"|documentElement\s*\.\s*dataset\s*\.\s*theme")
+
+
+@rule("light-dark-with-theme-stamp", "error",
+      "light-dark() responds only to color-scheme and cannot see a data-theme "
+      "stamp. It compiles and silently ignores the toggle. Declare the tokens "
+      "three times instead.",
+      f"{BRAND} > NOT this brand (denylist)")
+def light_dark_with_theme_stamp(text, path):
+    # The stamp has two spellings: the attribute form (data-theme, in CSS
+    # selectors and HTML) and the JS property form (dataset.theme). Either one
+    # means a toggle exists that light-dark() cannot see.
+    if not THEME_STAMP.search(text):
+        return []
+    return [make(light_dark_with_theme_stamp, path, line_of(text, m.start()),
+                 m.group(0))
+            for m in re.finditer(r"light-dark\s*\(", text)]
+
+
+@rule("theme-on-root", "error",
+      "Writing data-theme onto the document root pins a ground globally. "
+      "Scope it to a container, and re-declare color and background on it.",
+      f"{BRAND} > NOT this brand (denylist)")
+def theme_on_root(text, path):
+    return [make(theme_on_root, path, line_of(text, m.start()), m.group(0))
+            for m in THEME_ON_ROOT.finditer(text)]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("paths", nargs="+")

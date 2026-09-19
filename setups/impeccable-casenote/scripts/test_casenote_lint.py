@@ -107,3 +107,36 @@ class TestTokenRules(unittest.TestCase):
                 "var(--accent),var(--accent-bright));}</style>")
         ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
         self.assertNotIn("accent-bright-as-mark", ids)
+
+
+class TestThemingRules(unittest.TestCase):
+    def assert_flags(self, rule_id, fixture_name):
+        path = FIXTURES / fixture_name
+        findings = casenote_lint.scan_text(path.read_text(), str(path))
+        ids = [f.rule for f in findings]
+        self.assertIn(rule_id, ids, f"{fixture_name} did not trip {rule_id}: {ids}")
+
+    def test_light_dark_with_theme_stamp(self):
+        self.assert_flags("light-dark-with-theme-stamp", "light_dark_bad.html")
+
+    def test_theme_on_root(self):
+        self.assert_flags("theme-on-root", "theme_on_root_bad.html")
+
+    def test_light_dark_alone_is_not_flagged(self):
+        """light-dark() is fine when nothing stamps data-theme."""
+        text = "<style>:root{color:light-dark(#102420,#e9f0ec);}</style>"
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("light-dark-with-theme-stamp", ids)
+
+    def test_scoped_theme_container_is_not_flagged(self):
+        """Scoping data-theme to a container is the correct pattern."""
+        text = "<script>panel.dataset.theme='dark';</script>"
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertNotIn("theme-on-root", ids)
+
+    def test_light_dark_with_js_dataset_stamp(self):
+        """dataset.theme is the same stamp as data-theme, spelled from JS."""
+        text = ("<style>:root{color:light-dark(#102420,#e9f0ec);}</style>"
+                "<script>panel.dataset.theme='dark';</script>")
+        ids = [f.rule for f in casenote_lint.scan_text(text, "x.html")]
+        self.assertIn("light-dark-with-theme-stamp", ids)
