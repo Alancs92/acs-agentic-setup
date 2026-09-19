@@ -4,9 +4,35 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-20 (later)
+
+- **`setups/impeccable-casenote` renamed to
+  [`setups/impeccable-brand-lint`](setups/impeccable-brand-lint/README.md) and
+  made brand-agnostic.** v1 hard-coded one brand's hexes, token names and
+  `ignoreRules` into the rule functions — wrong shape, since Impeccable itself
+  is brand-neutral and `brand-guidelines` is already multi-brand.
+- Five rules were already universal; the other four needed *values*, not
+  different logic. They now read from a `brands/<brand>.json` profile, and
+  return no findings when unconfigured rather than falling back to a default
+  brand. `casenote_lint.py` became `brand_lint.py`; rule ids lost their
+  Casenote vocabulary (`site-token-names` → `forbidden-token-names`,
+  `accent-bright-as-mark` → `gradient-only-as-mark`, `seventh-series-colour` →
+  `series-ceiling`).
+- The same profile now emits the detector's `ignoreRules` via
+  `--emit-impeccable-config`, so one brand drives both tools. In v1 that config
+  was a separate hand-maintained file that could silently disagree.
+- Profiles are hand-authored and record the `source_sha256` of their brand
+  markdown; the linter exits 1 on drift, naming both hashes. Deriving profiles
+  by parsing the brand files was rejected — their section shapes differ, so a
+  parser tuned to one returns an empty profile for the others, and empty reads
+  as "clean".
+- A synthetic second brand (`Acme`) in the suite asserts its own violations are
+  caught *and* that Casenote's tokens are invisible under it. Without that,
+  every test would still pass on a Casenote-shaped engine. 51 tests.
+
 ## 2026-09-20
 
-- [`setups/impeccable-casenote`](setups/impeccable-casenote/README.md) built and
+- [`setups/impeccable-casenote`](setups/impeccable-brand-lint/README.md) built and
   active. Two composable checks: `fetch_engine.py` resolves a version-pinned
   Impeccable engine from its platform npm package, verifies the registry's
   dist.integrity sha512 and records provenance in a committed
@@ -24,7 +50,7 @@ repo. This is the timeline view — for the structural map, see
 
 ## 2026-09-19
 
-- Design for [`setups/impeccable-casenote`](setups/impeccable-casenote/design.md)
+- Design for [`setups/impeccable-casenote`](setups/impeccable-brand-lint/design.md)
   — the scoped adoption the Impeccable evaluation recommended: upstream's
   detector, version-pinned and vendored, plus a `casenote-lint` checker encoding
   the mechanically-testable half of Casenote's denylist, both sharing one

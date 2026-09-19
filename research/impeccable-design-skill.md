@@ -9,7 +9,7 @@ restate the lean-profile findings, link them.
 
 - **Date:** 2026-09-18
 - **Status:** concluded → promoted to
-  [`setups/impeccable-casenote`](../setups/impeccable-casenote/README.md)
+  [`setups/impeccable-brand-lint`](../setups/impeccable-brand-lint/README.md)
 
 ## Question
 
@@ -131,7 +131,7 @@ Not adopted for Harrison.ai work pending the supply-chain review in conflict 4.
 ### Update 2026-09-19 — design landed
 
 Step 2 was designed in
-[`../setups/impeccable-casenote/design.md`](../setups/impeccable-casenote/design.md),
+[`../setups/impeccable-brand-lint/design.md`](../setups/impeccable-brand-lint/design.md),
 and building it corrected two things asserted above from the project's README:
 
 - The engine version (`0.1.5`, in the CLI package's `optionalDependencies`) is

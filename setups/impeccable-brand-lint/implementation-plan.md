@@ -8,7 +8,12 @@
 
 **Tech Stack:** Python 3 standard library only (`subprocess`, `tarfile`, `hashlib`, `base64`, `json`, `re`, `argparse`, `unittest`). `npm` is invoked as a subprocess for engine acquisition — it is already required to run Impeccable at all. No pip installs, no third-party imports.
 
-**Status:** complete — all six tasks implemented and committed 2026-09-20 (`b195eca`..`4ee8cfd`). 35 tests passing.
+**Status:** complete, and **superseded in part**. All six tasks were implemented
+and committed 2026-09-20 (`b195eca`..`4ee8cfd`). The setup was then revised to be
+brand-agnostic: `casenote_lint.py` became `brand_lint.py`, four rules moved their
+values into `brands/*.json` profiles, and the setup was renamed. This document is
+kept as the record of how v1 was built — read `design.md`'s "Revision: making it
+themeless" for what changed and why. Rule ids and file names below are v1's.
 
 **Spec:** `setups/impeccable-casenote/design.md` (read it before starting — every task below argues from it)
 
