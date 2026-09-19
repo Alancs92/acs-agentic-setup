@@ -8,9 +8,8 @@ restate the lean-profile findings, link them.
 # Impeccable — third-party design skill for coding agents
 
 - **Date:** 2026-09-18
-- **Status:** open — evaluated by detector only; nothing installed yet. Design for the
-  scoped adoption now lives at
-  [`../setups/impeccable-casenote/design.md`](../setups/impeccable-casenote/design.md)
+- **Status:** concluded → promoted to
+  [`setups/impeccable-casenote`](../setups/impeccable-casenote/README.md)
 
 ## Question
 

@@ -1,0 +1,13 @@
+{
+  "//": "Copy to <project>/.impeccable/config.json. See ../design.md.",
+  "detector": {
+    "ignoreRules": ["overused-font"],
+    "//ignoreRules": [
+      "overused-font: Casenote mandates Inter for headings and UI. That is a",
+      "validated choice, not a default - these artifacts land in decks, PDFs and",
+      "PPTX where webfonts do not resolve, and Inter degrades to the system stack",
+      "without reflow. Source: brands/alan-personal.md > Typography.",
+      "This is the ONLY rule Casenote disagrees with; see design.md Evidence 1."
+    ]
+  }
+}

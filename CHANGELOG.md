@@ -4,6 +4,24 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-20
+
+- [`setups/impeccable-casenote`](setups/impeccable-casenote/README.md) built and
+  active. Two composable checks: `fetch_engine.py` resolves a version-pinned
+  Impeccable engine from its platform npm package, verifies the registry's
+  dist.integrity sha512 and records provenance in a committed
+  `engine.lock.json`; `casenote_lint.py` adds 9 rules encoding the
+  mechanically-testable half of Casenote's denylist. Shared exit-code contract
+  (0/1/2) so both run in one CI step. 35 tests.
+- No fork of upstream was needed. `IMPECCABLE_BIN` points at a binary we hold,
+  and the single rule Casenote disagrees with (`overused-font`, on Inter) is
+  suppressed by one `ignoreRules` entry.
+- The composition paid for itself immediately: upstream's contrast check caught
+  two real defects in the hand-written clean fixture — a dark-mode block that
+  forgot to re-declare `--surface` (1.7:1), and a bordered container with no
+  inset — the first being a denylist item `casenote_lint.py` deliberately
+  cannot encode.
+
 ## 2026-09-19
 
 - Design for [`setups/impeccable-casenote`](setups/impeccable-casenote/design.md)

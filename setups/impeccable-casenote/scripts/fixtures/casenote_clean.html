@@ -12,15 +12,17 @@
   --font-body:"Source Serif 4",Georgia,serif;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --paper:#0f1715; --ink:#e9f0ec; --body:#b8c4be; --accent:#2dd4bf;
+  --paper:#0f1715; --surface:#16211e; --ink:#e9f0ec; --body:#b8c4be;
+  --muted:#8a978f; --rule:#263230; --accent:#2dd4bf;
 }}
 :root[data-theme="dark"]{
-  --paper:#0f1715; --ink:#e9f0ec; --body:#b8c4be; --accent:#2dd4bf;
+  --paper:#0f1715; --surface:#16211e; --ink:#e9f0ec; --body:#b8c4be;
+  --muted:#8a978f; --rule:#263230; --accent:#2dd4bf;
 }
 body{background:var(--paper);color:var(--body);font-family:var(--font-body);}
 h1{font-family:var(--font-head);color:var(--ink);}
 .hairline{height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-bright));}
-.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px;}
 .mark-1{fill:var(--series-1);}
 a{color:var(--accent);}
 </style></head>
