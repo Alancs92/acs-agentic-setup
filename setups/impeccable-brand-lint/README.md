@@ -132,6 +132,16 @@ exit 0
 Nothing in `scripts/` changes. See [`brands/INDEX.md`](brands/INDEX.md) —
 copy a profile, set the parameters, record the source hash, add a row.
 
+Two profiles ship, and they exercise the engine in usefully different ways:
+
+| Profile | Shape | Series | Suppressions |
+|---|---|---|---|
+| `casenote` | artifact brand | 5 + residual, ceiling 6 | `overused-font` (mandates Inter) |
+| `usage-dashboard` | data surface | 8, ceiling 8 | none |
+
+The dashboard profile needing **zero** suppressions is the useful signal: the
+suppression list is a property of the brand, not of the tool.
+
 ## Why both tools, concretely
 
 The Casenote clean fixture was written by hand and looked right. Upstream's
