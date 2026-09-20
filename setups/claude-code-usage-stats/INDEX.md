@@ -10,6 +10,7 @@ the repo in `~/.cache/claude-acs-stats/`, because the data is personal.
 |---|---|
 | [`README.md`](README.md) | The setup: what it is, why, flags, the three-figure dedup model, privacy, measured performance. |
 | [`design.md`](design.md) | Approved design: data model, `stats.json` schema, correctness traps, UTC decision, YAGNI cuts. |
+| [`THEME.md`](THEME.md) | The dashboard's design system — tokens with measured contrast, the eight-series palette, the heat scale, and the denylist. Source of truth for the `usage-dashboard` brand profile in `impeccable-brand-lint`, which records its sha256. |
 | [`implementation-plan.md`](implementation-plan.md) | The eight-task TDD build record, one module per task. |
 | [`scripts/`](scripts) | The collector: `discovery`/`history`/`transcripts`/`cache`/`aggregate`/`render` behind the `collect_stats.py` CLI, plus 49 tests. |
 | [`dashboard/`](dashboard) | `template.html` — vanilla JS + inline SVG, no chart library, no CDN, no build step. |
