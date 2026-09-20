@@ -1,0 +1,28 @@
+{
+  "$comment": "claude-acs skills -- PULL ONLY, NEVER DESTRUCTIVE. ~/.claude/skills is simultaneously a git working tree, the directory Claude Code loads skills from, and the place half-finished skills are being edited right now. It therefore holds the only copy of in-progress work, so this job is allowed exactly two operations: `git fetch`, and `git merge --ff-only` on a tree that is completely clean and strictly behind. Everything else -- dirty tree, untracked files, diverged history, detached HEAD, unexpected remote -- is SKIPPED and logged, never resolved. It cannot stash, reset, clean, check out, restore, rebase or force anything: those verbs are absent from the allow-list in scripts/gitops.py and no setting in this file can add them. See README.md LEGEND.",
+  "schema_version": 1,
+
+  "target": {
+    "$comment": "The repository this setup is permitted to touch, and no other. `remote` is compared against the target's actual origin before anything runs; a mismatch aborts the run. Comparison normalises https / ssh / scp forms and an optional .git suffix, so re-cloning over SSH does not trip it.",
+    "path": "~/.claude/skills",
+    "remote": "https://github.com/alan-soewargo-hai/acs-claude-skills.git",
+    "remote_name": "origin",
+    "branch": "main"
+  },
+
+  "policy": {
+    "$comment": "stale_after_days is the only tunable that changes behaviour, and it only changes `status`'s exit code -- never what `pull` is willing to do. 14 days: long enough that a fortnight of legitimately dirty tree does not cry wolf, short enough that a launchd job that quietly stopped loading gets noticed within a sprint.",
+    "stale_after_days": 14
+  },
+
+  "log_path": "~/Library/Logs/com.acs.claude-skills-sync.log",
+
+  "schedule": {
+    "$comment": "DAILY at 07:15 local. Daily rather than the backup job's weekly because a pull is cheap, is a no-op when there is nothing to pull, and its value decays with staleness. 07:15 puts it just ahead of the 07:45 morning briefing, so `claude-acs skills status` reads numbers gathered minutes ago rather than a day ago. `weekday` is only consulted when interval_days == 7 (0=Sunday .. 6=Saturday); it is kept here so switching cadence needs no code change.",
+    "interval_days": 1,
+    "weekday": 1,
+    "hour": 7,
+    "minute": 15,
+    "label": "com.acs.claude-skills-sync"
+  }
+}
