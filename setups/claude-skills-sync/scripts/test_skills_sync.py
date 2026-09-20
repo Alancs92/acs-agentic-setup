@@ -722,6 +722,36 @@ class LaunchdPlistTests(unittest.TestCase):
         xml = self._render(interval_days=3)
         self.assertIn("<key>StartInterval</key>\n\t<integer>259200</integer>", xml)
 
+    def test_generated_arguments_parse_with_this_script_s_own_parser(self):
+        """The plist argv must be accepted by the CLI it invokes.
+
+        Regression: ProgramArguments placed --config *after* the `pull`
+        subcommand, where argparse rejects it. The plist looked correct, launchd
+        loaded it happily, and the daily job failed every morning with
+        "unrecognized arguments". Asserting individual <string> entries -- which
+        the tests above do -- cannot catch an ordering fault; only feeding the
+        whole argv back through the real parser can.
+        """
+        import plistlib
+        xml = schedule_mod.render_launchd_plist(
+            self._config(), SCRIPTS_DIR / "skills_sync.py",
+            Path("/tmp/whatever-config.json"))
+        program = plistlib.loads(xml.encode("utf-8"))["ProgramArguments"]
+        argv = program[2:]  # drop the interpreter and the script path
+        skills_sync.build_parser().parse_args(argv)  # must not raise SystemExit
+
+    def test_usage_error_is_not_reported_as_needs_attention(self):
+        """A malformed command line must not exit with EXIT_ATTENTION.
+
+        argparse exits 2 by default, which this tool already spends on "diverged
+        -- a human must look". That collision is why the broken job read as an
+        expected loud skip for two days instead of as a failure.
+        """
+        with self.assertRaises(SystemExit) as caught:
+            skills_sync.build_parser().parse_args(
+                ["pull", "--config", "/tmp/x.json"])
+        self.assertNotEqual(caught.exception.code, skills_sync.EXIT_ATTENTION)
+
     def test_job_runs_pull_quietly_and_never_at_load(self):
         xml = self._render()
         self.assertIn("<string>pull</string>", xml)

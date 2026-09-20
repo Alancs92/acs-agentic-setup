@@ -129,6 +129,37 @@ One wart worth knowing: `plugin-catalog-cache.json` (~406KB) is captured in
 changes on its own schedule, so it will snapshot more often than the things you
 actually authored. Add it to `exclude_globs` if the churn bothers you.
 
+`scripts` covers loose shell scripts by explicit path, not by walking a
+directory:
+
+```json
+"scripts": {
+  "enabled": true,
+  "paths": ["~/claude_code_toggle.sh", "~/.local/bin/claude-mserve", "..."]
+}
+```
+
+What belongs here is a hand-authored script with **no other copy**. Deliberately
+excluded:
+
+| Not backed up | Why |
+|---|---|
+| `~/.local/bin/hai-script`, `textx-tix`, `tide` | symlinks into git repos — history already, and `hai-script` is pushed to GitHub |
+| `gs`, `hermes`, `cursor` | installer-generated shims; a reinstall regenerates them |
+| `tracker-capture` | already lives inside OneDrive |
+| `node`, `npm`, `poetry`, `ccusage`, … | installed tools, refetchable |
+
+They are the odd source out because they are not siblings in one tree — each
+lives wherever its loader expects it. `~/claude_code_toggle.sh` is sourced from
+`.zshrc` by absolute path and defines the whole `claude-acs` surface, so it
+cannot be moved into a `scripts/` directory the way skills or hooks are
+collected. Add more paths to the list as they appear.
+
+Units are named by basename, so two scripts sharing one is a collision. That is
+reported as a problem and the second is skipped, never silently dropped. A
+directory in `paths` is likewise refused rather than walked — the config meant a
+file, and walking would back up something far larger than intended.
+
 ## Secrets
 
 `settings.json` can carry tokens and these blobs land in **corporate OneDrive**.

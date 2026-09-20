@@ -38,6 +38,7 @@ from backup_types import (    # noqa: E402
     KIND_COMMAND,
     KIND_HOOK,
     KIND_PLUGIN_MANIFEST,
+    KIND_SCRIPT,
     KIND_SETTINGS,
     KIND_SKILL,
     STATUS_DEGRADED,
@@ -73,6 +74,7 @@ _SOURCE_KINDS = {
     "hooks": (KIND_HOOK,),
     "settings": (KIND_SETTINGS, KIND_CLAUDE_MD),
     "plugins": (KIND_PLUGIN_MANIFEST,),
+    "scripts": (KIND_SCRIPT,),
 }
 
 

@@ -1,0 +1,8 @@
+{
+  "cli_version": "4.1.0",
+  "engine_version": "0.1.5",
+  "platform": "darwin-arm64",
+  "binary_sha256": "0d48b6e16aa97664fdbe607d5da9ae320e389a1843e0ff1328f8c2530530320d",
+  "route": "npm:@impeccable/cli-darwin-arm64",
+  "acquired": "2026-09-20"
+}

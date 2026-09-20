@@ -4,6 +4,73 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-20 (later)
+
+- **`setups/impeccable-casenote` renamed to
+  [`setups/impeccable-brand-lint`](setups/impeccable-brand-lint/README.md) and
+  made brand-agnostic.** v1 hard-coded one brand's hexes, token names and
+  `ignoreRules` into the rule functions — wrong shape, since Impeccable itself
+  is brand-neutral and `brand-guidelines` is already multi-brand.
+- Five rules were already universal; the other four needed *values*, not
+  different logic. They now read from a `brands/<brand>.json` profile, and
+  return no findings when unconfigured rather than falling back to a default
+  brand. `casenote_lint.py` became `brand_lint.py`; rule ids lost their
+  Casenote vocabulary (`site-token-names` → `forbidden-token-names`,
+  `accent-bright-as-mark` → `gradient-only-as-mark`, `seventh-series-colour` →
+  `series-ceiling`).
+- The same profile now emits the detector's `ignoreRules` via
+  `--emit-impeccable-config`, so one brand drives both tools. In v1 that config
+  was a separate hand-maintained file that could silently disagree.
+- Profiles are hand-authored and record the `source_sha256` of their brand
+  markdown; the linter exits 1 on drift, naming both hashes. Deriving profiles
+  by parsing the brand files was rejected — their section shapes differ, so a
+  parser tuned to one returns an empty profile for the others, and empty reads
+  as "clean".
+- A synthetic second brand (`Acme`) in the suite asserts its own violations are
+  caught *and* that Casenote's tokens are invisible under it. Without that,
+  every test would still pass on a Casenote-shaped engine. 51 tests.
+
+## 2026-09-20
+
+- [`setups/impeccable-casenote`](setups/impeccable-brand-lint/README.md) built and
+  active. Two composable checks: `fetch_engine.py` resolves a version-pinned
+  Impeccable engine from its platform npm package, verifies the registry's
+  dist.integrity sha512 and records provenance in a committed
+  `engine.lock.json`; `casenote_lint.py` adds 9 rules encoding the
+  mechanically-testable half of Casenote's denylist. Shared exit-code contract
+  (0/1/2) so both run in one CI step. 35 tests.
+- No fork of upstream was needed. `IMPECCABLE_BIN` points at a binary we hold,
+  and the single rule Casenote disagrees with (`overused-font`, on Inter) is
+  suppressed by one `ignoreRules` entry.
+- The composition paid for itself immediately: upstream's contrast check caught
+  two real defects in the hand-written clean fixture — a dark-mode block that
+  forgot to re-declare `--surface` (1.7:1), and a bordered container with no
+  inset — the first being a denylist item `casenote_lint.py` deliberately
+  cannot encode.
+
+## 2026-09-19
+
+- Design for [`setups/impeccable-casenote`](setups/impeccable-brand-lint/design.md)
+  — the scoped adoption the Impeccable evaluation recommended: upstream's
+  detector, version-pinned and vendored, plus a `casenote-lint` checker encoding
+  the mechanically-testable half of Casenote's denylist, both sharing one
+  exit-code contract. `brands/alan-personal.md` remains the single source of
+  truth for token values; nothing forks upstream. Designed only — not built.
+- Fixed a `side-tab` anti-pattern in the usage-stats dashboard: `.utc-note`
+  dropped its 3px accent `border-left`. Detector now clean (exit 0) on
+  `dashboard/template.html`.
+
+## 2026-09-18
+
+- Evaluated [Impeccable](https://github.com/pbakaus/impeccable), a third-party
+  design-language skill for coding agents
+  ([`research/impeccable-design-skill.md`](research/impeccable-design-skill.md)).
+  Ran its standalone detector against the usage-stats dashboard — one `side-tab`
+  anti-pattern (`.utc-note`, 3px accent border + border-radius). Verdict: keep
+  scoped — the zero-context-cost detector is the valuable half; the 24-command
+  skill stays uninstalled until a personal project with sustained UI work can
+  justify the slot against the lean profile.
+
 ## 2026-08-25
 
 - Consolidated skill ownership. `~/.claude/skills` tracked 13 entries as git
@@ -43,6 +110,7 @@ repo. This is the timeline view — for the structural map, see
   — `claude-acs stats`, cross-account usage statistics emitting a versioned
   `stats.json` plus a standalone 13-panel HTML dashboard over prompt history
   and session transcripts, with `(timestamp, display)` dedup across accounts.
+
 
 ## 2026-07-25
 

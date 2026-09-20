@@ -19,5 +19,11 @@ setups/claude-skills-backup/objects/
 setups/claude-skills-backup/index.db
 setups/claude-skills-backup/*.db-wal
 setups/claude-skills-backup/*.db-shm
+
+# Resolved Impeccable engine — provenance is engine.lock.json, not the binary
+.impeccable/
+
+# Python bytecode and test caches
 __pycache__/
 *.pyc
+.pytest_cache/

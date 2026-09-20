@@ -61,6 +61,21 @@ DEFAULT_CONFIG = SETUP_DIR / "config.json"
 EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_ATTENTION = 2
+EXIT_USAGE = 3
+
+
+class _Parser(argparse.ArgumentParser):
+    """An ArgumentParser whose usage errors do not exit 2.
+
+    argparse's default is exit 2, which this tool already spends on
+    EXIT_ATTENTION ("diverged -- a human must look"). Sharing the code makes a
+    malformed command line indistinguishable from an expected loud skip, which is
+    how a broken launchd job went unnoticed. Usage errors get their own code.
+    """
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_USAGE, "%s: error: %s\n" % (self.prog, message))
 
 DEFAULT_STALE_AFTER_DAYS = 14
 
@@ -407,7 +422,7 @@ def cmd_install_schedule(config: dict, args) -> int:
 # --- CLI --------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         prog="claude-acs skills",
         description="Pull-only sync for ~/.claude/skills. Never stashes, "
                     "resets, checks out or force-anythings; a dirty tree is "

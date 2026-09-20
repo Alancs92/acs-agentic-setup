@@ -1,0 +1,20 @@
+{
+  "name": "Casenote",
+  "description": "Alan's personal artifact brand. Source of truth is the brand-guidelines skill; this profile only restates the machine-checkable parameters.",
+  "source_file": "~/.claude/skills/brand-guidelines/brands/alan-personal.md",
+  "source_sha256": "d9cad27fe7e02617be18233ce90f15b06a1c7610527c511aa16a755c3e3f8e32",
+  "source_version": "v1 · 2026-09-04",
+
+  "series": { "prefix": "--series-", "ceiling": 6 },
+  "gradient_only": ["--accent-bright", "#10b981"],
+  "status_tokens": ["--good", "--warning", "--critical"],
+  "forbidden_tokens": ["--swatch-\\d+", "--life-\\d+", "--dot-twinkle"],
+
+  "impeccable": { "ignoreRules": ["overused-font"] },
+
+  "notes": {
+    "series.ceiling": "Brand: 'Six categories is the ceiling' and the denylist forbids 'a seventh categorical colour'. --series-other is the residual bucket, not slot 6.",
+    "gradient_only": "--accent-bright #10b981 measures 2.49:1 on light paper - below even the non-text floor. Gradient partner only.",
+    "impeccable.ignoreRules": "overused-font: Casenote mandates Inter for headings and UI. Validated choice, not a default - these artifacts land in decks, PDFs and PPTX where webfonts do not resolve."
+  }
+}
