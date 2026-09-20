@@ -19,14 +19,19 @@ Rules for every module:
 
 ## Shared types (`backup_types.py` — owned by integrator, read-only for others)
 
-> **Renamed from `types.py` (2026-08-25).** A module named `types.py` sitting in
-> the scripts directory shadows the standard library's `types` module for every
-> process whose `sys.path[0]` is that directory — which is every `python3
-> backup.py`, every `python3 -m unittest`, and every direct test run. CPython's
-> own `functools`/`enum`/`importlib` do `from types import GenericAlias`, hit our
-> file instead, and the interpreter dies during startup before a single line of
-> our code executes. Verified fatal on the local Python 3.9.6. Import the shared
-> vocabulary as `from backup_types import Unit, FileEntry, Snapshot`.
+> **Renamed from `types.py` (2026-08-25).** A module named `types.py` in this
+> directory shadows the standard library's `types`. On the local Python 3.9.6,
+> `python3 -m unittest` dies with `ImportError: cannot import name 'GenericAlias'
+> from 'types'` raised from CPython's own `functools.py:22`, because `-m`
+> prepends the working directory to `sys.path` before `runpy` imports
+> `functools`. A plain `python3 backup.py` is unaffected — so the whole test
+> suite breaks while the code it tests runs fine. On 3.13 nothing crashes, but
+> `import types` resolves to the stdlib and the shared module becomes unreachable
+> by name. Neither interpreter gives a working `types.py`.
+> Import the shared vocabulary as `from backup_types import Unit, FileEntry, Snapshot`.
+>
+> *Measured 2026-08-25. An earlier wording claimed every invocation was fatal;
+> that did not survive reproduction.*
 
 ```python
 KIND_SKILL           = "skill"

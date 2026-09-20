@@ -30,6 +30,34 @@ that directory, one line per entry, and links deeper only where needed.
 | [`templates/`](templates/INDEX.md) | Copy-paste starting points for adding a new agent doc, setup, or research note, so new entries stay structurally consistent. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Dated, human-readable log of notable changes across setups — the append-only timeline view of this repo's history. |
 
+## What's running
+
+Several setups here install a `claude-acs` subcommand and, in some cases, a
+scheduled job. This table is the operational summary — each setup's own README
+is authoritative for detail.
+
+| Command | Setup | Schedule | What it does |
+|---|---|---|---|
+| `claude-acs stats` | [`claude-code-usage-stats`](setups/claude-code-usage-stats/README.md) | on demand | Cross-account usage stats + HTML dashboard |
+| `claude-acs apply-profile` | [`claude-code-account-profiles`](setups/claude-code-account-profiles/README.md) | on demand | Applies the lean-core plugin/skill profile to an account |
+| `claude-acs backup` | [`claude-skills-backup`](setups/claude-skills-backup/README.md) | Mon 17:00 | Versioned, deduped backup of hand-authored config to cloud storage |
+| `claude-acs skills` | [`claude-skills-sync`](setups/claude-skills-sync/README.md) | daily 07:15 | Pull-only sync of `~/.claude/skills` with its remote |
+
+`claude-acs save` snapshots an **account login** and is unrelated to
+`claude-acs backup`, which backs up **skills and config**. Similar-sounding
+verbs, different subsystems.
+
+Two operational notes that are easy to get wrong:
+
+- **Scheduled jobs bake an absolute script path at install time.** They do not
+  resolve `setups/` dynamically the way the shell wrappers do, so a job
+  installed from a feature worktree keeps pointing at it and breaks when that
+  worktree is removed. Install schedules from a long-lived worktree.
+- **Prefer a weekday working hour over the small hours.** launchd coalesces
+  calendar events missed while the machine *sleeps*, but that guarantee is
+  documented for sleep, not for a powered-off machine — and a LaunchAgent only
+  loads at login.
+
 ## Conventions
 
 - **One `INDEX.md` per directory.** When you add a subdirectory, add an
