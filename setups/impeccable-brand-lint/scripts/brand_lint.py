@@ -62,15 +62,28 @@ def load_profile(name_or_path):
     return merged
 
 
+# brands/ lives at <repo>/setups/<setup>/brands, so the repo root is three up.
+REPO_ROOT = BRANDS_DIR.parents[2]
+
+
 def _source_path(profile):
+    """Resolve a profile's source_file.
+
+    Absolute and ~-prefixed paths are used as given. A relative path is
+    anchored to $BRAND_GUIDELINES_DIR when set, otherwise to the repo root —
+    never to the process cwd, which would make the staleness check pass from
+    one directory and raise a false alarm from another.
+    """
     raw = profile.get("source_file")
     if not raw:
         return None
-    base = os.environ.get("BRAND_GUIDELINES_DIR")
     p = Path(raw).expanduser()
-    if not p.is_absolute() and base:
-        p = Path(base).expanduser() / raw
-    return p
+    if p.is_absolute():
+        return p
+    base = os.environ.get("BRAND_GUIDELINES_DIR")
+    if base:
+        return Path(base).expanduser() / raw
+    return REPO_ROOT / raw
 
 
 def check_source(profile):
@@ -172,6 +185,9 @@ def scan_paths(paths, profile=None):
 HEX = re.compile(r"(?<![&\"'])#[0-9a-fA-F]{3,8}\b")
 MARK_PROPS = re.compile(
     r"\b(fill|stroke|color|border(?:-[a-z]+)?-color)\s*:\s*([^;}\n]+)", re.I)
+# Series marks live in inline SVG. color/background/border-* are UI chrome,
+# which is exactly where a status colour is supposed to appear.
+SERIES_SURFACE = re.compile(r"\b(fill|stroke)\s*:\s*([^;}\n]+)", re.I)
 THEME_STAMP = re.compile(r"data-theme|dataset\s*\.\s*theme")
 THEME_ON_ROOT = re.compile(
     r"documentElement\s*\.\s*setAttribute\s*\(\s*['\"]data-theme['\"]"
@@ -319,8 +335,9 @@ def gradient_only_as_mark(text, path, profile):
 
 
 @rule("status-as-series", "error",
-      "Status colours are reserved. They are never series colours and never "
-      "brand.", "profile.status_tokens")
+      "Status colours are reserved. They are never series colours. Using one on "
+      "a chart mark reads as a category rather than a state.",
+      "profile.status_tokens")
 def status_as_series(text, path, profile):
     tokens = profile.get("status_tokens") or []
     if not tokens:
@@ -329,7 +346,9 @@ def status_as_series(text, path, profile):
     status_ref = re.compile(r"var\(\s*--(?:" + alternation + r")\s*\)")
     prefix = (profile.get("series") or {}).get("prefix")
     out = []
-    for m in MARK_PROPS.finditer(text):
+    # Only the mark surface. A status colour on warning TEXT or a warning
+    # BORDER is the triad doing its job, not a categorical misuse.
+    for m in SERIES_SURFACE.finditer(text):
         if status_ref.search(m.group(2)):
             out.append(make(status_as_series, path,
                             line_of(text, m.start()), m.group(0)))

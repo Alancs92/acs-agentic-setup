@@ -50,6 +50,39 @@ instead of an afternoon.
 - **`claude-acs stats`** — wrapper in `~/claude_code_toggle.sh` (not tracked
   here; it lives in `$HOME`).
 
+## Theme
+
+The dashboard's design system is written down in [`THEME.md`](THEME.md) — every
+token with its measured contrast ratio, the eight-series categorical palette,
+the sequential heat scale, the reserved warn triad, and the denylist.
+
+It is deliberately **not** Casenote or any artifact brand. This is a dense data
+surface: eight series on one chart, a heat scale, light and dark ground. An
+artifact brand carries five categorical colours and would cost contrast this
+page cannot spare.
+
+It is enforced mechanically by [`../impeccable-brand-lint`](../impeccable-brand-lint/README.md)
+under the `usage-dashboard` profile, which records `THEME.md`'s sha256 — change
+the palette without updating the theme doc and the linter says so:
+
+```bash
+BL=../impeccable-brand-lint
+eval "$(python3 $BL/scripts/fetch_engine.py --print-export)"
+
+# the detector config comes from the same profile, so one theme drives both
+mkdir -p .impeccable
+python3 $BL/scripts/brand_lint.py --brand usage-dashboard --emit-impeccable-config \
+  > .impeccable/config.json
+
+"$IMPECCABLE_BIN" detect dashboard/template.html
+python3 $BL/scripts/brand_lint.py --brand usage-dashboard dashboard/template.html
+```
+
+Both report clean on the template and on the rendered 1.75MB dashboard. The
+profile needs no `ignoreRules` at all — unlike Casenote, which mandates Inter
+and must suppress `overused-font`, this theme uses the system stack and upstream
+finds nothing to disagree with.
+
 ## Reproducing it
 
 ```bash

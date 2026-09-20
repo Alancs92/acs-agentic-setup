@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -307,3 +308,65 @@ class TestRawHexFalsePositives(unittest.TestCase):
     def test_real_hex_inside_root_still_passes(self):
         text = "<style>:root{--ink:#102420;}</style>"
         self.assertNotIn("raw-hex", self.ids(text))
+
+
+class TestSourcePathResolution(unittest.TestCase):
+    """A profile's relative source_file must resolve the same from anywhere.
+
+    Resolving against the process cwd made the staleness check pass from the
+    repo root and fail from scripts/ — a profile that only validates from one
+    directory is a latent false alarm.
+    """
+
+    def test_repo_relative_source_resolves_regardless_of_cwd(self):
+        profile = brand_lint.load_profile("usage-dashboard")
+        original = os.getcwd()
+        results = []
+        for d in (Path(__file__).parent, Path(__file__).parents[3], Path(tempfile.gettempdir())):
+            try:
+                os.chdir(d)
+                results.append(brand_lint.check_source(profile))
+            finally:
+                os.chdir(original)
+        self.assertEqual(results, [None, None, None],
+                         f"source resolution is cwd-dependent: {results}")
+
+
+class TestStatusAsSeriesScope(unittest.TestCase):
+    """status-as-series must flag status colours used as SERIES marks, not
+    status colours doing their actual job.
+
+    Found against the real dashboard, where `color: var(--warn-ink)` on
+    `background: var(--warn-bg)` — the warn triad used exactly as intended —
+    produced three findings.
+    """
+
+    DASH = {
+        "name": "d",
+        "series": {"prefix": "--s", "ceiling": 8},
+        "status_tokens": ["--warn-ink", "--warn-bg", "--warn-line"],
+        "forbidden_tokens": [], "gradient_only": [],
+    }
+
+    def ids(self, text):
+        return [f.rule for f in brand_lint.scan_text(text, "x.html", self.DASH)]
+
+    def test_warn_ink_as_warning_text_is_legal(self):
+        text = "<style>.note{color:var(--warn-ink);background:var(--warn-bg);}</style>"
+        self.assertNotIn("status-as-series", self.ids(text))
+
+    def test_warn_line_as_warning_border_is_legal(self):
+        text = "<style>.stat.warn{border-left-color:var(--warn-line);}</style>"
+        self.assertNotIn("status-as-series", self.ids(text))
+
+    def test_status_as_an_svg_mark_fill_is_a_finding(self):
+        text = "<style>.bar-3{fill:var(--warn-ink);}</style>"
+        self.assertIn("status-as-series", self.ids(text))
+
+    def test_status_as_an_svg_mark_stroke_is_a_finding(self):
+        text = "<style>.line-2{stroke:var(--warn-line);}</style>"
+        self.assertIn("status-as-series", self.ids(text))
+
+    def test_status_assigned_to_a_series_token_is_a_finding(self):
+        text = "<style>:root{--s4:var(--warn-ink);}</style>"
+        self.assertIn("status-as-series", self.ids(text))

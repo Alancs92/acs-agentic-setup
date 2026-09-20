@@ -4,6 +4,32 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-21
+
+- **The usage-stats dashboard now has a written-down theme**
+  ([`setups/claude-code-usage-stats/THEME.md`](setups/claude-code-usage-stats/THEME.md)).
+  The palette already existed in `dashboard/template.html`; this records it with
+  measured contrast for every token — eight categorical series (worst case
+  `--s2` at 4.37:1, against a 3:1 mark floor), a five-step sequential heat
+  scale, a reserved warn triad — plus the denylist. No colour values changed.
+- Enforced by a second brand profile,
+  [`usage-dashboard.json`](setups/impeccable-brand-lint/brands/usage-dashboard.json),
+  hash-linked to `THEME.md`. It needs **no** `ignoreRules`: unlike Casenote,
+  which mandates Inter and must suppress `overused-font`, the dashboard uses the
+  system stack and upstream objects to nothing. The suppression list is a
+  property of the brand, not of the tool.
+- Two linter bugs found by pointing it at a real page rather than its fixtures:
+  - `status-as-series` flagged `color: var(--warn-ink)` on `--warn-bg` — the
+    warn triad doing its job. Narrowed to the mark surface (`fill`/`stroke`),
+    where categorical series actually live; `color` and `border-*` are UI chrome.
+  - A profile's relative `source_file` resolved against the process cwd, so the
+    staleness check passed from the repo root and raised a false alarm from
+    `scripts/`. Now anchored to the repo root.
+- Stats data refreshed: 10,150 prompts across 4 accounts, 280 projects, 1,296
+  sessions, 2026-02-16 → 2026-09-19. Output stays in `~/.cache/claude-acs-stats`
+  and is never committed, per the setup's privacy rule.
+- 61 tests in `impeccable-brand-lint`.
+
 ## 2026-09-20 (later)
 
 - **`setups/impeccable-casenote` renamed to

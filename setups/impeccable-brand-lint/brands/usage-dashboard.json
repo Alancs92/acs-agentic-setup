@@ -1,0 +1,28 @@
+{
+  "name": "Usage dashboard",
+  "description": "The claude-code-usage-stats dashboard's own design system. A dense data surface, not an artifact brand - it carries eight categorical series, a sequential heat scale and a warn triad that an artifact brand would not.",
+  "source_file": "setups/claude-code-usage-stats/THEME.md",
+  "source_sha256": "a6ca28cc86da5cf928966f6435320f9486f4cfc221ea9a4fe4e41c73f48d2533",
+  "source_version": "v1 · 2026-09-20",
+
+  "series": { "prefix": "--s", "ceiling": 8 },
+  "gradient_only": [],
+  "status_tokens": ["--warn-ink", "--warn-bg", "--warn-line"],
+  "forbidden_tokens": [
+    "--series-\\d+",
+    "--accent-bright",
+    "--paper",
+    "--swatch-\\d+",
+    "--life-\\d+",
+    "--dot-twinkle"
+  ],
+
+  "impeccable": { "ignoreRules": [] },
+
+  "notes": {
+    "series.ceiling": "Eight categorical series, already generous. THEME.md: 'past eight, facet.' Worst-case contrast is --s2 at 4.37:1 against --panel, well clear of the 3:1 mark floor.",
+    "status_tokens": "The warn triad is reserved and never a series colour. The heat scale is sequential and likewise never categorical, but it is not listed here - status-as-series only checks tokens used AS marks, and --heatN legitimately is one.",
+    "forbidden_tokens": "Token names from the other systems on this machine. Their appearance means something was pasted in from Casenote or the life-and-times site rather than using this theme's tokens.",
+    "impeccable.ignoreRules": "Empty, deliberately. Unlike Casenote (which mandates Inter and so must suppress overused-font), this theme uses the system stack and upstream finds nothing to disagree with. Verified: 0 findings on both the template and the rendered 1.75MB dashboard."
+  }
+}
