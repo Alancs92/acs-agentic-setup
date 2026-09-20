@@ -165,7 +165,11 @@ def scan_paths(paths, profile=None):
 # itself carries no brand's palette.
 # ---------------------------------------------------------------------------
 
-HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+# A hex colour, excluding two lookalikes that are not colours:
+#   &#8321;        HTML numeric entity (subscript digits in axis labels)
+#   href="#abc123" URL fragment
+# Both appear in real pages; firing on them trains the reader to ignore the tool.
+HEX = re.compile(r"(?<![&\"'])#[0-9a-fA-F]{3,8}\b")
 MARK_PROPS = re.compile(
     r"\b(fill|stroke|color|border(?:-[a-z]+)?-color)\s*:\s*([^;}\n]+)", re.I)
 THEME_STAMP = re.compile(r"data-theme|dataset\s*\.\s*theme")

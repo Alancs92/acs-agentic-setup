@@ -278,3 +278,32 @@ class TestEmitConfig(unittest.TestCase):
     def test_casenote_profile_emits_overused_font(self):
         cfg = brand_lint.impeccable_config(brand_lint.load_profile("casenote"))
         self.assertIn("overused-font", cfg["detector"]["ignoreRules"])
+
+
+class TestRawHexFalsePositives(unittest.TestCase):
+    """raw-hex must not fire on things that merely look like a hex colour.
+
+    A design linter that cries wolf gets ignored, so the legal directions are
+    pinned as tightly as the violations.
+    """
+
+    def ids(self, text):
+        return [f.rule for f in brand_lint.scan_text(text, "x.html", CASENOTE)]
+
+    def test_html_numeric_entities_are_not_hex(self):
+        """&#8321; is a subscript digit, not #8321. Found in the real
+        usage-stats dashboard's log-scale axis labels."""
+        text = "<p>10&#8321; and 10&#8320; on a log axis</p>"
+        self.assertNotIn("raw-hex", self.ids(text))
+
+    def test_url_fragment_is_not_hex(self):
+        text = '<a href="#abc123">jump</a>'
+        self.assertNotIn("raw-hex", self.ids(text))
+
+    def test_real_hex_outside_root_still_fires(self):
+        text = "<style>.card{color:#102420;}</style>"
+        self.assertIn("raw-hex", self.ids(text))
+
+    def test_real_hex_inside_root_still_passes(self):
+        text = "<style>:root{--ink:#102420;}</style>"
+        self.assertNotIn("raw-hex", self.ids(text))
