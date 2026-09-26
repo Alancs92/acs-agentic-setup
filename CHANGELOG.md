@@ -4,6 +4,29 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-26
+
+- **New research note: an executable runbook for benchmarking Laya on our own
+  decisions**
+  ([`research/laya-decision-model-benchmark.md`](research/laya-decision-model-benchmark.md)).
+  Laya is an open-weight, non-autoregressive decision model (typed choice/score/yes-no,
+  one forward pass, ~2 GB): the open alternative to TypeSafe's Jev. Its public
+  zero-shot numbers are weak (0.36 on typed-decisions, below majority class); the
+  headline 0.766 is fine-tuned on that benchmark's own train split. So the question
+  is not "is it good" but "does it clear *our* precision gates on *our* labelled
+  decisions".
+- The note is written to be executed by Claude Code on the MacBook end to end:
+  six tasks drawn from the tide-triage and vault tooling (duplicate matcher, triage
+  action, handbook type, category, related-note relevance, broken-link class);
+  gold-vs-silver labels, time-based splits, and verdicts on gold only, so Claude
+  isn't graded against its own past answers. Baselines are majority, existing
+  heuristic, and Haiku/Sonnet/Opus via isolated `claude -p`. The headline metric is
+  coverage at each task's required precision (1.00 for duplicate consumption, per
+  the matcher spec).
+- Winners get wired in **shadow mode only** (`ACS_LAYA=shadow`); `dismiss` is never
+  automatable. Raw data and predictions stay in `~/.cache/acs-laya-bench`, never
+  committed.
+
 ## 2026-09-21
 
 - **The usage-stats dashboard now has a written-down theme**
