@@ -14,7 +14,7 @@ existing heuristics and with Claude Haiku, Sonnet and Opus. It was executed from
 [`research/laya-decision-model-benchmark.md`](../../research/laya-decision-model-benchmark.md), which
 holds the question, the rules and the stop conditions.
 
-**Result:** see [`results/REPORT.md`](results/REPORT.md). No task reached ADOPT, so nothing is wired
+**Result:** see [`results/REPORT.md`](results/REPORT.md), or open [`results/report.html`](results/report.html) for the rendered page with charts. No task reached ADOPT, so nothing is wired
 in, not even in shadow mode.
 
 ## Why
@@ -37,8 +37,11 @@ off Claude at a precision we accept. Our gates are strict: 1.00 precision for co
 - `bench/metrics.py`: accuracy and macro-F1 with bootstrap CIs, ECE and Brier, coverage at the required
   precision (threshold picked on cal, applied to test, with a Wilson lower bound), flip rate, cost and
   latency. Also holds the Phase 5 verdict rules. `bench/test_metrics.py` tests them.
-- `bench/report.py`: writes `results/REPORT.md` and `results/metrics.json` (aggregates only), plus a
-  local HTML report with precision–coverage curves.
+- `bench/report.py` + `bench/render_html.py`: write `results/REPORT.md`, `results/metrics.json` and
+  `results/report.html`, all aggregates only. The HTML page uses the usage-dashboard theme tokens and two
+  series hues validated with the dataviz palette checker. It has precision–coverage charts with a hover
+  crosshair and passes `impeccable-brand-lint --brand usage-dashboard` with 0 findings. The narrative
+  sections live in `bench/report_narrative.json`.
 - `bench/cards.py`: writes `cards/<task>.md`, the dataset cards (counts only, paraphrased examples).
 
 ## Reproducing it
@@ -53,7 +56,7 @@ $P bench/preflight.py
 $P bench/build_datasets.py                      # all tasks; --tasks T1,T3 for a subset
 $P bench/run.py --systems majority,heuristic,laya0,laya0-perm,layaT,laya-head
 $P bench/run.py --systems haiku                 # then sonnet; opus is capped at 150 test items per task
-$P bench/report.py && open ~/.cache/acs-laya-bench/report.html
+$P bench/report.py && open results/report.html
 $P -m pytest -q bench                           # metric/verdict unit tests
 ```
 

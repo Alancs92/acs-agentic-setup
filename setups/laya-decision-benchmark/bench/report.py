@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Aggregate report: results/REPORT.md (committed, aggregates only) + ~/.cache/acs-laya-bench/report.html
-(same content plus precision–coverage curves). Also writes results/metrics.json (aggregates only)."""
-import html
+(same content plus precision–coverage charts, committed to results/report.html). Also writes results/metrics.json (aggregates only)."""
 import json
 import pathlib
 import sys
@@ -9,6 +8,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "systems"))
 import metrics as M  # noqa: E402
+import render_html  # noqa: E402
 from common import CACHE, DATA, SETUP  # noqa: E402
 
 TASKS = ["T1", "T3", "T5", "T2", "T4"]
@@ -117,49 +117,12 @@ def md(all_m, verdicts, extra):
     return "\n".join(L) + "\n"
 
 
-def svg_curves(m):
-    W, H, P = 360, 220, 34
-    colors = {"heuristic": "#8a8a8a", "laya0": "#c98a2b", "layaT": "#e0a030", "laya-head": "#b5541c",
-              "haiku": "#3b7dd8", "sonnet": "#2a5aa8", "opus": "#18336b"}
-    parts = [f'<svg viewBox="0 0 {W} {H}" width="100%" role="img" aria-label="precision coverage curves">',
-             f'<rect x="{P}" y="10" width="{W-P-10}" height="{H-P-10}" fill="none" stroke="var(--line)"/>']
-    req = m["required_precision"]
-    y = lambda p: 10 + (1 - p) * (H - P - 10)  # noqa: E731
-    x = lambda c: P + c * (W - P - 10)  # noqa: E731
-    parts.append(f'<line x1="{P}" x2="{W-10}" y1="{y(req)}" y2="{y(req)}" stroke="var(--accent)" stroke-dasharray="4 3"/>')
-    for s, v in m["systems"].items():
-        if s not in colors or not v["curve"]:
-            continue
-        pts = " ".join(f"{x(c):.1f},{y(p):.1f}" for c, p in v["curve"])
-        parts.append(f'<polyline points="{pts}" fill="none" stroke="{colors[s]}" stroke-width="1.6"><title>{s}</title></polyline>')
-    parts.append(f'<text x="{P}" y="{H-8}" font-size="10" fill="var(--muted)">coverage 0 → 1</text>')
-    parts.append(f'<text x="2" y="18" font-size="10" fill="var(--muted)">prec</text>')
-    legend = " ".join(f'<span style="color:{c}">■ {s}</span>' for s, c in colors.items() if s in m["systems"])
-    return "".join(parts) + "</svg>" + f'<div class="legend">{legend} <span style="color:var(--accent)">- - required</span></div>'
-
-
-def render_html(md_text, all_m):
-    body = []
-    for line in md_text.splitlines():
-        body.append(html.escape(line))
-    curves = "".join(f"<section><h3>{t} — {NAMES[t]}</h3>{svg_curves(all_m[t])}</section>" for t in TASKS)
-    return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Laya Benchmark Report</title><style>
-:root{{--bg:#fbfaf7;--fg:#1d1c1a;--muted:#6b675f;--line:#d9d4ca;--accent:#b5541c}}
-@media (prefers-color-scheme:dark){{:root{{--bg:#161513;--fg:#ece8e1;--muted:#a39e94;--line:#3a3833;--accent:#e08a50}}}}
-body{{background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,system-ui,sans-serif;max-width:980px;margin:0 auto;padding:16px}}
-pre{{white-space:pre-wrap;font:13px/1.45 ui-monospace,Menlo,monospace}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}}
-.legend{{font-size:12px;color:var(--muted)}} h3{{margin:.2em 0}}
-</style></head><body><h1>Laya decision-model benchmark</h1>
-<h2>Precision–coverage curves (gold test)</h2><div class="grid">{curves}</div>
-<h2>Report</h2><pre>{chr(10).join(body)}</pre></body></html>"""
+NARRATIVE = pathlib.Path(__file__).resolve().parent / "report_narrative.json"
 
 
 def main(extra_path=None):
     all_m, verdicts = build()
-    extra = json.loads(pathlib.Path(extra_path).read_text()) if extra_path else {
-        "headline2": "", "headline3": "", "sections": [], "cli_overhead_ms": 0, "input_tokens": 0}
+    extra = json.loads(pathlib.Path(extra_path or NARRATIVE).read_text())
     c = [v for t in all_m for s, v in all_m[t]["systems"].items() if s in CLAUDE]
     if c:
         extra["cli_overhead_ms"] = sorted((v.get("wall_p50_ms") or 0) - (v.get("latency_p50_ms") or 0) for v in c)[len(c) // 2]
@@ -171,8 +134,17 @@ def main(extra_path=None):
                "systems": {s: {k: v for k, v in sv.items() if k != "curve"} for s, sv in m["systems"].items()}}
            for t, m in all_m.items()}
     (SETUP / "results" / "metrics.json").write_text(json.dumps(agg, indent=2, default=str))
-    (CACHE / "report.html").write_text(render_html(text, all_m))
-    print(SETUP / "results" / "REPORT.md", CACHE / "report.html")
+    S1 = all_m["T1"]["systems"]
+    tiles = [(f"{S1['laya0']['coverage']:.0%}", "of duplicates zero-shot Laya can auto-consume at 1.00 precision (T1)"),
+             (f"{S1['laya-head']['coverage']:.0%} vs {S1['heuristic']['coverage']:.0%}",
+              "Laya with a trained head vs the free Jaccard matcher already in production (T1)"),
+             (f"{S1['opus']['coverage']:.0%} @ {S1['opus']['precision']:.2f}",
+              "Opus: the only Claude tier with zero false consumes on T1")]
+    page = render_html.page(text, all_m, extra, tiles)
+    # Aggregates only, so the rendered page is committed next to REPORT.md; a copy goes to the cache.
+    (SETUP / "results" / "report.html").write_text(page)
+    (CACHE / "report.html").write_text(page)
+    print(SETUP / "results" / "REPORT.md", SETUP / "results" / "report.html")
     for t, v in verdicts.items():
         print(t, v["verdict"], "—", v["reason"])
 

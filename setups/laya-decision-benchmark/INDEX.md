@@ -8,6 +8,7 @@ repo in `~/.cache/acs-laya-bench/`, because they hold work content.
 |---|---|
 | [`README.md`](README.md) | The setup: what, why, how to re-run it, privacy rules, known issues. |
 | [`results/REPORT.md`](results/REPORT.md) | The committed aggregate report: verdict table, per-task metrics with CIs, cost and latency, calibration, flip rate, caveats. |
+| [`results/report.html`](results/report.html) | The same report as a standalone page (open it locally): verdict, headline numbers, precision–coverage charts with hover, and the full tables. Aggregates only, lint-clean against the `usage-dashboard` brand profile. |
 | [`results/metrics.json`](results/metrics.json) | The same aggregates, machine-readable. |
 | [`results/microbench.json`](results/microbench.json) | Phase 1 smoke test and CPU-vs-MPS micro-benchmark. |
 | [`cards/`](cards) | One dataset card per task: source, label provenance, gold/silver counts per split, class balance, paraphrased examples. |

@@ -505,7 +505,8 @@ Keep it to one screen.
 ## Results
 
 Executed 2026-09-27 on the MacBook (M4 Pro, 48 GB). Full report:
-[`setups/laya-decision-benchmark/results/REPORT.md`](../setups/laya-decision-benchmark/results/REPORT.md).
+[`setups/laya-decision-benchmark/results/REPORT.md`](../setups/laya-decision-benchmark/results/REPORT.md)
+(rendered with charts: [`results/report.html`](../setups/laya-decision-benchmark/results/report.html)).
 
 - **Verdict: DROP. No task reached ADOPT, so nothing was wired in, not even in shadow mode.**
 - **Feasibility is fine.** On MPS it runs at 29 ms per call and 1.4 GB RSS. Docker and Ollama were
