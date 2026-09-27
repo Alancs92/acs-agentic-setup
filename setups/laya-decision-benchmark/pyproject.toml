@@ -1,0 +1,9 @@
+[project]
+name = "acs-laya-decision-benchmark"
+version = "0.1.0"
+description = "Benchmark the Laya decision model against heuristics and Claude on our own triage + vault decisions"
+requires-python = ">=3.11,<3.13"
+dependencies = ["laya==0.3.20", "scikit-learn", "numpy", "psutil"]
+
+[tool.pytest.ini_options]
+testpaths = ["bench"]
