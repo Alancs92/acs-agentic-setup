@@ -7,7 +7,7 @@ Alan's MacBook, end to end, with no further input. Kick-off prompt is in
 # Laya decision model — own benchmark, and adopt-or-drop per task
 
 - **Date:** 2026-09-26
-- **Status:** open — runbook ready, awaiting execution on the MacBook
+- **Status:** concluded → dead end. Laya fails every precision gate on our own gold decisions. Zero-shot is near chance, and a trained head doesn't beat the existing Jaccard matcher. The harness is kept at [`setups/laya-decision-benchmark`](../setups/laya-decision-benchmark/README.md) for re-runs.
 - **Agents involved:** Claude Code (executor + Haiku/Sonnet/Opus baselines), Laya (system under test), Ollama (optional baseline)
 
 ## How to run this
@@ -504,4 +504,21 @@ Keep it to one screen.
 
 ## Results
 
-_Not yet run._
+Executed 2026-09-27 on the MacBook (M4 Pro, 48 GB). Full report:
+[`setups/laya-decision-benchmark/results/REPORT.md`](../setups/laya-decision-benchmark/results/REPORT.md)
+(rendered with charts: [`results/report.html`](../setups/laya-decision-benchmark/results/report.html)).
+
+- **Verdict: DROP. No task reached ADOPT, so nothing was wired in, not even in shadow mode.**
+- **Feasibility is fine.** On MPS it runs at 29 ms per call and 1.4 GB RSS. Docker and Ollama were
+  untouched and memory pressure stayed around 83% free.
+- **Usefulness is not.** Zero-shot Laya covers 7% of duplicates at 1.00 precision (T1). It scores 0.41
+  accuracy on handbook type, below the 0.66 majority class (T3), and sits at chance on related-note
+  relevance (T5). It flips 21–31% of its answers when only the option order changes.
+- **A frozen-encoder head helps but not enough.** T1 reaches 57% at 1.00 precision, while the existing
+  free Jaccard matcher reaches 68%.
+- **A side finding about Claude, useful on its own.** On T1, Opus was the only tier that held 1.00
+  precision (79% coverage). Haiku and Sonnet each made one false consume. No tier clears T3 or T5 at the
+  required precision.
+- **Deviations.** The live D1 board was unreachable (Cloudflare 7403), so data came from the 2026-08-26
+  backups. That made T2 and T4 exploratory. T6 had no positive labels. The T1 fixture needed its
+  negatives cleaned. All of this is in the report's caveats.

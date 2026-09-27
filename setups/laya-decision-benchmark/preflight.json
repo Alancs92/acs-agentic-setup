@@ -1,0 +1,27 @@
+{
+  "arch": "arm64",
+  "chip": "Apple M4 Pro",
+  "ram_gb": 48.0,
+  "perf_cores": 10,
+  "memory_free_pct": "System-wide memory free percentage: 82%",
+  "disk_free_gb": 110.8,
+  "python": "3.12.12",
+  "claude": "2.1.283 (Claude Code)",
+  "uv": "/opt/homebrew/bin/uv",
+  "ollama_models": [
+    "glm-4.7-flash-cc:64k",
+    "qwen3.6-cc:27b-64k",
+    "qwen3.6-cc:35b-a3b-128k",
+    "qwen3.6-cc:35b-a3b-64k",
+    "qwen3.6:35b-a3b",
+    "qwen3.6:27b",
+    "nomic-embed-text:latest",
+    "glm-4.7-flash:latest"
+  ],
+  "hf_reachable": 200,
+  "paths": {
+    "vault": "~/repos/textx-v2",
+    "task_manager": "~/repos/acs-task-manager",
+    "skills_source": "~/.claude/skills"
+  }
+}

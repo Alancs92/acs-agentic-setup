@@ -1,0 +1,15 @@
+{
+  "laya_version": "0.3.20",
+  "checkpoint": "convaiinnovations/laya (english, ModernBERT-large 421M) snapshot 55cf4c4",
+  "machine": "Apple M4 Pro, 48 GB, 10 performance cores",
+  "threads": {"torch.set_num_threads": 10, "torch.set_num_interop_threads": 1},
+  "smoke": {"department": "billing", "answer_confidence": 0.9865, "churn_p_yes": 0.879, "passed_on": ["cpu", "mps"]},
+  "devices": {
+    "cpu": {"cold_load_s": 79.9, "p50_ms_per_call": 77.0, "p95_ms_per_call": 85.9, "batch16_ms": 581.6, "peak_rss_gb": 2.39},
+    "mps": {"warm_load_s": 3.1, "p50_ms_per_call": 29.4, "p95_ms_per_call": 30.7, "batch16_ms": 778.5, "peak_rss_gb": 1.38}
+  },
+  "chosen_device": "mps",
+  "why": "2.6x faster p50 than pinned CPU and lower process RSS; batching does not help on MPS (16 items = 49 ms/item vs 29 ms sequential)",
+  "laya_apple": "not tried — best p50 is far below the 400 ms trigger",
+  "note": "cpu cold_load includes the first 807 MB weight download; mps RSS understates unified-memory use"
+}
