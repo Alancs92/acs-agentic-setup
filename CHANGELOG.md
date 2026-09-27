@@ -4,6 +4,21 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-09-27
+
+- **Laya benchmark executed: DROP. The open-weight decision model fails every precision gate on our own
+  decisions, so nothing was adopted**
+  ([`setups/laya-decision-benchmark/results/REPORT.md`](setups/laya-decision-benchmark/results/REPORT.md)).
+  It runs fine locally (29 ms per call on MPS, 1.4 GB). Zero-shot, though, it covers 7% of duplicates at
+  1.00 precision, scores below the majority class on handbook type, and sits at chance on related-note
+  relevance. A logistic head on its frozen encoder reaches 57% duplicate coverage, still below the
+  Jaccard matcher already in production (68%).
+- Side finding: at the duplicate gate, only Opus held 1.00 precision (79% coverage). Haiku and Sonnet
+  each made one false consume at their calibration-chosen threshold.
+- New setup [`setups/laya-decision-benchmark/`](setups/laya-decision-benchmark/README.md) (archived) keeps
+  the reproducible harness: PHI-gated dataset builders, Laya and Claude systems, metrics with tests, and
+  dataset cards. Raw data stays in `~/.cache/acs-laya-bench`.
+
 ## 2026-09-26
 
 - **New research note: an executable runbook for benchmarking Laya on our own
