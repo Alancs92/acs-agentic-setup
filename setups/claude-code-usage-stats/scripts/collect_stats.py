@@ -55,13 +55,40 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
+def _write_atomic(path, text):
+    """Write via a sibling temp file + rename, so a crash never leaves a torn file."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+
+def _store_error(raw, store, accounts):
+    """Why `store` is unusable, or None. Checked before any output is touched.
+
+    An empty --store usually means an unset shell variable; Path("") is the
+    current directory, which would turn every repo under it into an "account"
+    and overwrite good output with garbage.
+    """
+    if not raw.strip():
+        return "--store is empty (unset shell variable?)"
+    if not store.is_dir():
+        return f"--store {store} is not a directory"
+    if not any(not a.is_canonical for a in accounts):
+        return f"--store {store} holds no account dirs (history.jsonl or projects/)"
+    return None
+
+
 def main(argv=None):
     args = parse_args(argv)
     out_dir = Path(args.out).expanduser()
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     store = Path(args.store).expanduser()
     accounts = discovery.discover_accounts(store, Path(args.canonical).expanduser())
+    error = _store_error(args.store, store, accounts)
+    if error:
+        print(f"error: {error}; refusing to overwrite {out_dir}", file=sys.stderr)
+        return 2
+    out_dir.mkdir(parents=True, exist_ok=True)
     if args.accounts:
         wanted = {n.strip() for n in args.accounts.split(",") if n.strip()}
         accounts = [a for a in accounts if a.name in wanted]
@@ -82,14 +109,14 @@ def main(argv=None):
         parse_cache.save()
 
     json_path = out_dir / "stats.json"
-    json_path.write_text(json.dumps(stats, indent=1))
+    _write_atomic(json_path, json.dumps(stats, indent=1))
 
     html_path = out_dir / "dashboard.html"
     if not args.json_only:
         if not TEMPLATE.is_file():
             print(f"error: template not found at {TEMPLATE}", file=sys.stderr)
             return 1
-        html_path.write_text(render_mod.render(TEMPLATE.read_text(), stats))
+        _write_atomic(html_path, render_mod.render(TEMPLATE.read_text(), stats))
 
     if not args.quiet:
         run = stats["run"]

@@ -54,6 +54,45 @@ class TestCLI(unittest.TestCase):
         stats = json.loads((self.out / "stats.json").read_text())
         self.assertEqual(stats["accounts"], [])
 
+    def run_with_store(self, store):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--store", store,
+             "--canonical", str(self.tmp / "canonical"), "--out", str(self.out)],
+            capture_output=True, text=True, cwd=self.tmp)
+
+    def seed_previous_output(self):
+        self.out.mkdir(parents=True)
+        (self.out / "stats.json").write_text("previous")
+        (self.out / "dashboard.html").write_text("previous")
+
+    def assert_rejected_and_untouched(self, r):
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("--store", r.stderr)
+        self.assertEqual((self.out / "stats.json").read_text(), "previous")
+        self.assertEqual((self.out / "dashboard.html").read_text(), "previous")
+
+    def test_empty_store_is_rejected_not_read_as_cwd(self):
+        # An unset shell variable expands to --store "", which Path() reads as
+        # the current directory -- the run then treats every repo as an account.
+        self.seed_previous_output()
+        self.assert_rejected_and_untouched(self.run_with_store(""))
+
+    def test_missing_store_is_rejected(self):
+        self.seed_previous_output()
+        self.assert_rejected_and_untouched(self.run_with_store(str(self.tmp / "nope")))
+
+    def test_store_without_accounts_is_rejected(self):
+        self.seed_previous_output()
+        empty = self.tmp / "empty-store"
+        empty.mkdir()
+        self.assert_rejected_and_untouched(self.run_with_store(str(empty)))
+
+    def test_no_temp_files_left_behind(self):
+        r = self.run_cli()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()),
+                         ["cache.json", "dashboard.html", "stats.json"])
+
 
 if __name__ == "__main__":
     unittest.main()
