@@ -105,7 +105,7 @@ for both setups) → `$HOME/repos/acs-agentic-setup`.
 
 | Flag | Effect |
 |---|---|
-| `--store DIR` | Account store to scan. Default `~/.claude-accounts`. `claude-acs` passes `$CLAUDE_ACCOUNT_STORE`. |
+| `--store DIR` | Account store to scan. Default `~/.claude-accounts`. `claude-acs` passes `$CLAUDE_ACCOUNT_STORE`, falling back to `~/.claude-accounts` when unset. An empty value, a missing directory, or a store with no account dirs exits 2 before any output is written, so a bad run never overwrites a good `stats.json`. |
 | `--canonical DIR` | Config dir reported as the `canonical` pseudo-account. Default `~/.claude`. |
 | `--accounts a,b` | Restrict to named accounts. Also shrinks the cache — see *Notes*. |
 | `--since YYYY-MM-DD` | Earliest **UTC** date to include. |
