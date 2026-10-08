@@ -3,7 +3,7 @@
 #   echo "source ~/claude_code_toggle.sh" >> ~/.zshrc
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-CLAUDE_ACCOUNT_STORE="$HOME/.claude-accounts"  # per-account config dirs live here
+export CLAUDE_ACCOUNT_STORE="$HOME/.claude-accounts"  # per-account config dirs live here; exported so non-interactive shells (Claude Code `!`) inherit it
 CLAUDE_MODE="remote"
 CLAUDE_ACCOUNT="default"
 CLAUDE_DEFAULT_FILE="$CLAUDE_ACCOUNT_STORE/.default"
@@ -60,6 +60,14 @@ _claude_otel_snapshot() {
   _CLAUDE_OTEL_BACKUP="$blob"
 }
 
+# Granular opt-outs instead of CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: that umbrella
+# flag also blocks feature-flag evaluation, which Remote Control needs. These cover the
+# same monitoring (Statsig usage metrics, Sentry error reports, feedback/survey uploads)
+# without breaking RC. Autoupdates intentionally left on.
+_claude_privacy_vars() {
+  echo DISABLE_TELEMETRY DISABLE_ERROR_REPORTING DISABLE_FEEDBACK_COMMAND DISABLE_BUG_COMMAND CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY
+}
+
 _claude_otel_disable() {
   _claude_otel_snapshot
   local var
@@ -67,12 +75,19 @@ _claude_otel_disable() {
     unset "$var"
   done
   export OTEL_SDK_DISABLED=true
-  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  unset CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+  for var in $(_claude_privacy_vars); do
+    export "$var"=1
+  done
 }
 
 _claude_otel_enable() {
+  local var
   unset OTEL_SDK_DISABLED
   unset CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+  for var in $(_claude_privacy_vars); do
+    unset "$var"
+  done
   if [ -n "$_CLAUDE_OTEL_BACKUP" ]; then
     eval "$_CLAUDE_OTEL_BACKUP"
     unset _CLAUDE_OTEL_BACKUP
@@ -293,7 +308,7 @@ __claude_acs_stats() {
     echo "   Set CLAUDE_ACS_REPO to your acs-agentic-setup checkout or worktree."
     return 1
   fi
-  python3 "$script" --store "$CLAUDE_ACCOUNT_STORE" "$@"
+  python3 "$script" --store "${CLAUDE_ACCOUNT_STORE:-$HOME/.claude-accounts}" "$@"
 }
 
 # Versioned, deduplicated backup of hand-authored Claude config — skills,
