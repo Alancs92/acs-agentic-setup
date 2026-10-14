@@ -162,6 +162,9 @@ claude-acs() {
     skills|sk)
       __claude_acs_skills "$@"
       ;;
+    regroup|rg)
+      __claude_acs_regroup "$@"
+      ;;
     help|--help|-h)
       __claude_acs_help "$@"
       ;;
@@ -201,6 +204,10 @@ __claude_acs_help() {
 │                             remote. PULL ONLY — refuses when dirty   │
 │                             or diverged, never stashes or resets.    │
 │                             subs: pull status install-schedule       │
+│    regroup, rg [args]       Start a /regroup session (Sonnet, run    │
+│                             from $HOME; account from                 │
+│                             $CLAUDE_ACS_REGROUP_ACCOUNT, default     │
+│                             harrison). Args go to /regroup.          │
 │    help,   -h               Show this help                           │
 │                                                                      │
 │  EXAMPLES                                                            │
@@ -216,6 +223,7 @@ __claude_acs_help() {
 │    claude-acs backup run         # snapshot changed skills/config    │
 │    claude-acs bk status          # last backup run + store size      │
 │    claude-acs bk restore my-skill --at 2026-07-01                    │
+│    claude-acs rg                 # run the regroup ritual             │
 │                                                                      │
 │  QUICK START                                                         │
 │    1. Log in:    claude → /login                                     │
@@ -225,6 +233,31 @@ __claude_acs_help() {
 │    5. Switch:    claude-acs sw work                                  │
 └──────────────────────────────────────────────────────────────────────┘
 HELP
+}
+
+# Launch the /regroup ritual in a fresh Claude Code session.
+# Runs in a subshell so CLAUDE_CONFIG_DIR / cwd never leak into the caller.
+# The session id is pre-minted and appended to skip-sessions so tide attribution
+# can deterministically skip regroup sessions.
+# Overrides (for tests): CLAUDE_ACS_REGROUP_ACCOUNT (default harrison),
+# CLAUDE_ACS_REGROUP_DIR (default ~/.claude/regroup), CLAUDE_ACS_CLAUDE_BIN.
+__claude_acs_regroup() {
+  local acct="${CLAUDE_ACS_REGROUP_ACCOUNT:-harrison}"
+  local dir="${CLAUDE_ACS_REGROUP_DIR:-$HOME/.claude/regroup}"
+  local bin="${CLAUDE_ACS_CLAUDE_BIN:-$HOME/.local/bin/claude}"
+  __claude_acs_validate_name "$acct" || return 1
+  if [ ! -d "$CLAUDE_ACCOUNT_STORE/$acct" ]; then
+    echo "❌ Account '$acct' not found in $CLAUDE_ACCOUNT_STORE"
+    return 1
+  fi
+  local sid
+  sid="$(uuidgen | tr '[:upper:]' '[:lower:]')" || return 1
+  mkdir -p "$dir" && printf '%s\n' "$sid" >> "$dir/skip-sessions" || return 1
+  (
+    export CLAUDE_CONFIG_DIR="$CLAUDE_ACCOUNT_STORE/$acct"
+    cd "$HOME" || exit 1
+    exec "$bin" --model sonnet --session-id "$sid" "/regroup $*"
+  )
 }
 
 # Resolve a setup script inside the acs-agentic-setup repo.

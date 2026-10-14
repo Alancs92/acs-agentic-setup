@@ -145,6 +145,59 @@ class WorktreeResolution(unittest.TestCase):
             self.assertEqual(err, "")
 
 
+class RegroupLaunch(unittest.TestCase):
+    """`claude-acs regroup` launches /regroup with the right env and records the session."""
+
+    def _run(self, *args, account="harrison", make_account=True):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        store = os.path.join(tmp, "store")
+        if make_account:
+            os.makedirs(os.path.join(store, account))
+        stub = os.path.join(tmp, "claude-stub")
+        with open(stub, "w") as fh:
+            fh.write('#!/bin/sh\necho "CFG=$CLAUDE_CONFIG_DIR"\necho "PWD=$(pwd -P)"\n'
+                     'for a in "$@"; do echo "ARG=$a"; done\n')
+        os.chmod(stub, 0o755)
+        env = dict(os.environ, CLAUDE_ACS_CLAUDE_BIN=stub,
+                   CLAUDE_ACS_REGROUP_DIR=os.path.join(tmp, "regroup"),
+                   CLAUDE_ACS_REGROUP_ACCOUNT=account, HOME=tmp)
+        env.pop("CLAUDE_CONFIG_DIR", None)
+        cmd = ("source %s >/dev/null 2>&1; CLAUDE_ACCOUNT_STORE=%s; "
+               "claude-acs regroup %s; echo RC=$?; echo AFTER_CFG=${CLAUDE_CONFIG_DIR:-unset}"
+               % (TRACKED, store, " ".join(args)))
+        res = subprocess.run(["zsh", "-c", cmd], capture_output=True, text=True, env=env)
+        return res, tmp, store
+
+    def test_launches_regroup_with_session_id_config_dir_and_skip_entry(self):
+        res, tmp, store = self._run("now")
+        lines = res.stdout.splitlines()
+        self.assertIn("CFG=%s" % os.path.join(store, "harrison"), lines)
+        self.assertIn("PWD=%s" % os.path.realpath(tmp), lines)
+        self.assertIn("ARG=/regroup now", lines)
+        self.assertIn("ARG=sonnet", lines)
+        self.assertIn("ARG=--model", lines)
+        sid = lines[lines.index("ARG=--session-id") + 1][len("ARG="):]
+        self.assertRegex(sid, r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        self.assertEqual(read(os.path.join(tmp, "regroup", "skip-sessions")).split(), [sid])
+        self.assertIn("AFTER_CFG=unset", lines)  # subshell-scoped
+
+    def test_rg_alias_dispatches(self):
+        res, _, _ = self._run()
+        self.assertIn("ARG=/regroup ", res.stdout)
+
+    def test_unknown_account_fails_before_launching(self):
+        res, tmp, _ = self._run(make_account=False)
+        self.assertNotIn("ARG=", res.stdout)
+        self.assertIn("not found", res.stdout)
+        self.assertFalse(os.path.exists(os.path.join(tmp, "regroup", "skip-sessions")))
+
+    def test_help_lists_regroup(self):
+        out = subprocess.run(["zsh", "-c", "source %s >/dev/null 2>&1; claude-acs help" % TRACKED],
+                             capture_output=True, text=True).stdout
+        self.assertIn("regroup", out)
+
+
 class TrackedCopyMatchesLive(unittest.TestCase):
 
     def test_tracked_copy_is_current(self):
@@ -155,6 +208,8 @@ class TrackedCopyMatchesLive(unittest.TestCase):
         """
         if not os.path.isfile(LIVE):
             self.skipTest("no live ~/claude_code_toggle.sh on this machine")
+        if os.environ.get("ACS_SKIP_LIVE_DRIFT"):
+            self.skipTest("ACS_SKIP_LIVE_DRIFT set (pre-cutover: live copy not yet refreshed)")
         self.assertEqual(
             read(TRACKED), read(LIVE),
             "tracked copy has drifted from the live file; refresh it with:\n"

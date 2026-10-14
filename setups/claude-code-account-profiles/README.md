@@ -35,6 +35,13 @@ by explicit `add`/`remove` diffs — no copy-paste, no drift, reproducible.
 
 ## The shell entry point
 
+`claude-acs regroup` (`rg`) starts the `/regroup` ritual: a fresh Sonnet session
+launched from `$HOME` with `CLAUDE_CONFIG_DIR` set (subshell-scoped) to
+`$CLAUDE_ACCOUNT_STORE/${CLAUDE_ACS_REGROUP_ACCOUNT:-harrison}`. It pre-mints a
+`--session-id` and appends it to `~/.claude/regroup/skip-sessions` so tide
+attribution can skip regroup sessions. Test overrides: `CLAUDE_ACS_REGROUP_DIR`,
+`CLAUDE_ACS_CLAUDE_BIN`.
+
 `claude-acs` itself is a zsh function, not a script. It lives at
 `~/claude_code_toggle.sh`, sourced from `.zshrc`, and **stays there** — it is used
 constantly and relocating it buys nothing.
