@@ -602,7 +602,8 @@ print(exp)
   echo "│  Subscription:    ${sub_type:-(unknown)}"
   echo "│  Token expires:   ${expires_at:-(unknown)}"
   echo "│  ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-"(unset — Anthropic default)"}"
-  echo "│  ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:+"set"}${ANTHROPIC_API_KEY:-"(unset)"}"
+  # Presence only, never any part of the value.
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then echo "│  ANTHROPIC_API_KEY=set"; else echo "│  ANTHROPIC_API_KEY=(unset)"; fi
   echo "│  ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-"(unset — Claude Code default)"}"
   if _claude_otel_is_enabled; then
     echo "│  Telemetry:      📡 ENABLED → ${OTEL_EXPORTER_OTLP_ENDPOINT}"
