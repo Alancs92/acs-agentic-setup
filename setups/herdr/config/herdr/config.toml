@@ -1,0 +1,36 @@
+onboarding = false
+
+[ui]
+status_indicators = "symbols"
+
+[theme]
+name = "nord"
+auto_switch = false
+
+# acs.attention plugin: show the manual mark ($mark token) on agent rows.
+[ui.sidebar.agents]
+rows = [["state_icon", "machine", "workspace", "tab", "$mark"], ["agent"]]
+
+[[keys.command]]
+key = "prefix+u"
+type = "plugin_action"
+command = "acs.attention.cycle"
+description = "mark: later → review → waiting → none"
+
+[[keys.command]]
+key = "prefix+shift+u"
+type = "plugin_action"
+command = "acs.attention.clear"
+description = "mark: clear"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "acs.attention.next"
+description = "jump to next agent needing attention"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "acs.attention.seen-all"
+description = "mark all done agents as seen"
