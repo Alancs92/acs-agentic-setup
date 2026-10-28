@@ -1,0 +1,33 @@
+id = "acs.attention"
+name = "Attention"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Manual sticky agent marks (later / review / waiting) and attention navigation"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "-I", "attention.py", "restore"]
+
+[[actions]]
+id = "cycle"
+title = "Mark: cycle later → review → waiting → none"
+contexts = ["pane", "tab", "global"]
+command = ["python3", "-I", "attention.py", "cycle"]
+
+[[actions]]
+id = "clear"
+title = "Mark: clear"
+contexts = ["pane", "tab", "global"]
+command = ["python3", "-I", "attention.py", "clear"]
+
+[[actions]]
+id = "next"
+title = "Jump to next agent needing attention"
+contexts = ["global"]
+command = ["python3", "-I", "attention.py", "next"]
+
+[[actions]]
+id = "seen-all"
+title = "Mark all done agents as seen"
+contexts = ["global"]
+command = ["python3", "-I", "attention.py", "seen-all"]
