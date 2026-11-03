@@ -4,6 +4,10 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-10-28
+
+- **herdr adopted as the persistent agent runtime under cmux** ([`setups/herdr/`](setups/herdr/README.md)). It versions the herdr config, the `acs.attention` marks plugin, the cmux notification hook and the zsh guard that stops cmux restoring a single `claude --resume` in place of herdr. An idempotent `install.sh` copies repo to live, and `capture.sh` copies live back to the repo.
+
 ## 2026-09-27
 
 - **Laya benchmark executed: DROP. The open-weight decision model fails every precision gate on our own
