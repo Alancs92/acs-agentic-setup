@@ -25,6 +25,14 @@ LABELS = {"later": "↩️ later", "review": "👀 review", "waiting": "⏳ wait
 # Lower rank = more urgent when jumping.
 NATIVE_RANK = {"blocked": 0, "done": 1}
 MARK_RANK = 2
+# A stored mark whose pane has not been seen for this long is dropped, on the last
+# restore pass (once agents have had time to report in). Shorter would lose marks on
+# sessions you just haven't opened for a while.
+STALE_AFTER = 14 * 24 * 3600
+# Refresh a matched mark's last_seen at most this often, so restore passes rarely write.
+TOUCH_EVERY = 3600
+RESTORE_TRIES = 18
+RESTORE_INTERVAL = 5
 
 HERDR = os.environ.get("HERDR_BIN_PATH") or "herdr"
 STATE_DIR = os.environ.get("HERDR_PLUGIN_STATE_DIR") or os.path.expanduser("~/.local/state/herdr-attention")
@@ -104,7 +112,7 @@ def set_mark(pane, mark):
     # Drop a stale pane-keyed entry once the pane has a session id.
     marks.pop(f"pane:{pane['pane_id']}", None)
     if mark:
-        marks[key] = {"mark": mark, "pane_id": pane["pane_id"]}
+        marks[key] = {"mark": mark, "pane_id": pane["pane_id"], "last_seen": time.time()}
     else:
         marks.pop(key, None)
     save_state(state)
@@ -132,17 +140,38 @@ def cmd_clear():
         set_mark(pane, None)
 
 
-def restore_once():
-    """Re-apply stored marks; returns how many are still unmatched."""
-    marks = load_state().get(session_name(), {})
+def restore_once(prune=False):
+    """Re-apply stored marks; returns how many are still unmatched.
+
+    Each mark carries last_seen, refreshed while its pane exists. With prune=True
+    (the final pass), unmatched marks unseen for STALE_AFTER are dropped, so marks
+    of Claude sessions that are gone for good stop piling up and stop starting the
+    retry loop on every server start.
+    """
+    state = load_state()
+    marks = state.get(session_name(), {})
     by_key = {mark_key(p): p for p in panes()}
+    now = time.time()
     unmatched = 0
-    for key, entry in marks.items():
+    changed = False
+    for key, entry in list(marks.items()):
         pane = by_key.get(key)
         if pane:
             apply(pane["pane_id"], entry["mark"])
+            if now - entry.get("last_seen", 0) > TOUCH_EVERY:
+                entry["last_seen"] = now
+                changed = True
+            continue
+        if "last_seen" not in entry:  # stored before last_seen existed: start its clock
+            entry["last_seen"] = now
+            changed = True
+        if prune and now - entry["last_seen"] > STALE_AFTER:
+            del marks[key]
+            changed = True
         else:
             unmatched += 1
+    if changed:
+        save_state(state)
     return unmatched
 
 
@@ -158,9 +187,9 @@ def cmd_restore():
 
 
 def cmd_restore_loop():
-    for _ in range(18):
-        time.sleep(5)
-        if not restore_once():
+    for attempt in range(RESTORE_TRIES):
+        time.sleep(RESTORE_INTERVAL)
+        if not restore_once(prune=attempt == RESTORE_TRIES - 1):
             return
 
 
