@@ -4,6 +4,10 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-11-04
+
+- **herdr sessions route to a Claude account by name** ([`setups/herdr/`](setups/herdr/README.md)). A session named `personal`, or ending in `-personal`, starts its panes on that account. Other sessions keep the default. Nothing in the setup names an account any more: `install.sh` sets up every saved account, including herdr's own Claude integration, and `capture.sh` reads from any account. The zsh block is now a managed block that re-runs replace in place. A missing `settings.json` or a failed reload no longer aborts the install. Marks of Claude sessions unseen for 14 days are pruned. Tests: `setups/herdr/scripts/test_herdr_setup.py`.
+
 ## 2026-10-28
 
 - **herdr adopted as the persistent agent runtime under cmux** ([`setups/herdr/`](setups/herdr/README.md)). It versions the herdr config, the `acs.attention` marks plugin, the cmux notification hook and the zsh guard that stops cmux restoring a single `claude --resume` in place of herdr. An idempotent `install.sh` copies repo to live, and `capture.sh` copies live back to the repo.
