@@ -34,7 +34,10 @@ FAKE_HERDR = """#!/bin/bash
 echo "herdr $* [${CLAUDE_CONFIG_DIR:-}]" >> "$FAKE_LOG"
 case "$1 $2" in
   "integration status")
-    if [ -f "$CLAUDE_CONFIG_DIR/integrated" ]; then echo "claude: current (v10)"; else echo "claude: not installed"; fi ;;
+    if [ -f "$CLAUDE_CONFIG_DIR/integrated" ]; then echo "claude: current (v10)"; else echo "claude: not installed"; fi
+    # Like the real herdr, keep writing after the claude line: a reader that stops
+    # early (grep -q) makes these writes fail with SIGPIPE.
+    for _ in $(seq 1 2000); do echo "other: not installed (/some/long/path/to/an/integration/file)"; done ;;
   "integration install") touch "$CLAUDE_CONFIG_DIR/integrated" ;;
   "session list")
     [ -n "${FAKE_SESSION_FAIL:-}" ] && exit 1
