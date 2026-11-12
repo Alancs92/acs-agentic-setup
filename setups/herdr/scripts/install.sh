@@ -71,7 +71,9 @@ for acct in $ACCOUNTS; do
   echo "claude account: $acct"
   # herdr's own Claude integration (agent state + session ids, which the marks key on)
   # lives in each account's config dir, so it is per account too.
-  if CLAUDE_CONFIG_DIR="$base" herdr integration status 2>/dev/null | grep -q '^claude: current'; then
+  # Not `| grep -q`: grep -q exits at the first match, the writer then dies of SIGPIPE,
+  # and under pipefail the check fails at random, forcing a needless reinstall.
+  if CLAUDE_CONFIG_DIR="$base" herdr integration status 2>/dev/null | grep '^claude: current' >/dev/null; then
     echo "  herdr integration: current"
   elif CLAUDE_CONFIG_DIR="$base" herdr integration install claude >/dev/null 2>&1; then
     echo "  herdr integration: installed"
