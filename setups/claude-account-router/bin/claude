@@ -1,0 +1,24 @@
+#!/bin/zsh -f
+# claude-router wrapper: picks the claude-acs account for this launch, then execs the
+# real claude. Installed ahead of it on PATH. Logic: ../lib/claude-router.zsh.
+emulate -R zsh
+setopt extendedglob
+self=${0:A}
+source "${self:h:h}/lib/claude-router.zsh" || exit 1
+
+if ! real=$(cr_real_claude "$self"); then
+  print -ru2 -- "claude-router: no real claude found on PATH after ${self:h}"
+  exit 127
+fi
+
+if [[ $CLAUDE_ROUTER_DISABLE == 1 ]]; then exec "$real" "$@"; fi
+
+cr_decide "$PWD"
+if [[ $CR_ACTION == error ]]; then
+  print -ru2 -- "claude-router: $CR_REASON; not starting claude (claude-route check)"
+  exit 1
+fi
+cr_apply || exit 1
+cr_log
+[[ -n $CLAUDE_ROUTER_VERBOSE ]] && print -ru2 -- "claude-router: ${CR_ACCOUNT:-claude default} ($CR_REASON)"
+exec "$real" "$@"

@@ -1,0 +1,67 @@
+#!/bin/zsh -f
+# claude-route: inspect and steer claude-router. See ../README.md.
+emulate -R zsh
+setopt extendedglob
+self=${0:A}
+source "${self:h:h}/lib/claude-router.zsh" || exit 1
+
+usage() {
+  cat <<'USAGE'
+usage: claude-route <command>
+  which [dir]          which account `claude` would use here, and why
+  check                validate the rules file and that every account in it exists
+  pin <account>        pin this repo (all its worktrees) to an account: git config claude.account
+  unpin                remove this repo's pin
+  run <account> [args] run claude on that account once (CLAUDE_ROUTE_ACCOUNT)
+  rules                show the rules file
+  edit                 open the rules file in $EDITOR
+  log [n]              last n routing decisions (default 20)
+USAGE
+}
+
+cmd=${1:-help}; (( $# )) && shift
+case $cmd in
+  which|why)
+    dir=${1:-$PWD}
+    [[ -d $dir ]] || { print -ru2 -- "no such folder: $dir"; exit 1; }
+    cr_decide "$dir"; rc=$?
+    print -r -- "account: ${CR_ACCOUNT:-claude default}  ($CR_ACTION)"
+    print -r -- "reason:  $CR_REASON"
+    print -r -- "folder:  ${CR_CWD/#$HOME/~}"
+    for k in repo remote branch; do v=$(_cr_fact $k); [[ -n $v ]] && print -r -- "$k:$(printf '%*s' $((8 - ${#k})) '')$v"; done
+    [[ -n $ORCA_PANE_KEY ]] && print -r -- "context: Orca pane"
+    [[ -n $HERDR_SESSION ]] && print -r -- "context: herdr session $HERDR_SESSION"
+    if [[ $CR_ACTION == switch ]] && ! _cr_account_exists "$CR_ACCOUNT"; then
+      print -r -- "warning: account '$CR_ACCOUNT' is not saved; claude would refuse to start"; exit 1
+    fi
+    exit $rc ;;
+  check)
+    f=$CLAUDE_ROUTER_RULES; bad=0
+    [[ -r $f ]] || { print -r -- "no rules file at ${f/#$HOME/~} (only pins and the default apply)"; exit 0; }
+    n=0
+    while IFS= read -r line || [[ -n $line ]]; do
+      (( n++ )); line=${line%%[[:space:]]#\#*}; words=(${=line}); (( $#words )) || continue
+      a=${words[1]}
+      if ! _cr_valid_name "$a"; then print -r -- "line $n: bad account name '$a'"; bad=1; continue; fi
+      _cr_account_exists "$a" || { print -r -- "line $n: account '$a' is not saved under ${CLAUDE_ACCOUNT_STORE/#$HOME/~}"; bad=1; }
+      CR_CWD=$PWD; CR_FACTS=()
+      for c in ${words[2,-1]}; do _cr_cond "$c"; (( $? == 2 )) && { print -r -- "line $n: bad condition '$c'"; bad=1; }; done
+    done < $f
+    (( bad )) || print -r -- "ok: ${f/#$HOME/~}"
+    exit $bad ;;
+  pin)
+    a=${1:?usage: claude-route pin <account>}
+    _cr_account_exists "$a" || { print -ru2 -- "account '$a' is not saved under ${CLAUDE_ACCOUNT_STORE/#$HOME/~}"; exit 1; }
+    git rev-parse --git-dir >/dev/null 2>&1 || { print -ru2 -- "not in a git repo"; exit 1; }
+    git config --local claude.account "$a" && print -r -- "pinned $(_cr_fact repo 2>/dev/null) to $a" ;;
+  unpin)
+    git config --local --unset claude.account && print -r -- "unpinned" || { print -ru2 -- "no pin here"; exit 1; } ;;
+  run)
+    a=${1:?usage: claude-route run <account> [claude args]}; shift
+    CLAUDE_ROUTE_ACCOUNT=$a exec "${self:h}/claude" "$@" ;;
+  rules) [[ -r $CLAUDE_ROUTER_RULES ]] && cat "$CLAUDE_ROUTER_RULES" || print -r -- "no rules file at $CLAUDE_ROUTER_RULES" ;;
+  edit) exec ${EDITOR:-vi} "$CLAUDE_ROUTER_RULES" ;;
+  log) tail -n ${1:-20} "$CLAUDE_ROUTER_LOG" 2>/dev/null || print -r -- "no decisions logged yet" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

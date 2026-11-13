@@ -4,6 +4,10 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-11-13
+
+- **claude-router picks the Claude account per launch** ([`setups/claude-account-router/`](setups/claude-account-router/README.md)). A `claude` wrapper first on PATH: an account someone chose (manual `claude-acs sw`, herdr session, script) wins, then a per-repo pin, then first-match rules on folder, remote, repo, branch, host or any env var. It applies the account through `claude-acs switch`, so the per-account telemetry env comes along, and refuses to start rather than fall back to another account. With Orca on "System default", terminals, `orca agent launch`, the chat view and restored panes all route through it. Tests: `scripts/test_claude_router.py` (fake HOME) and `scripts/e2e_orca.sh` (headless Orca in a closed sandbox).
+
 ## 2026-11-04
 
 - **herdr sessions route to a Claude account by name** ([`setups/herdr/`](setups/herdr/README.md)). A session named `personal`, or ending in `-personal`, starts its panes on that account. Other sessions keep the default. Nothing in the setup names an account any more: `install.sh` sets up every saved account, including herdr's own Claude integration, and `capture.sh` reads from any account. The zsh block is now a managed block that re-runs replace in place. A missing `settings.json` or a failed reload no longer aborts the install. Marks of Claude sessions unseen for 14 days are pruned. Tests: `setups/herdr/scripts/test_herdr_setup.py`.
