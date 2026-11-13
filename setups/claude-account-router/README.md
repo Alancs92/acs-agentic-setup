@@ -115,7 +115,7 @@ Open shells pick it up when they restart. To turn the router off for one launch:
 Tests (fake `HOME`, fake accounts, fake `claude`; nothing live is touched):
 
 ```bash
-python3 setups/claude-account-router/scripts/test_claude_router.py   # 35 unit and shell tests
+python3 setups/claude-account-router/scripts/test_claude_router.py   # 36 unit and shell tests
 setups/claude-account-router/scripts/e2e_orca.sh                     # Orca end to end, if installed
 ```
 

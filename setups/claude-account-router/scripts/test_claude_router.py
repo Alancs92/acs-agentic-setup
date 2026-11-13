@@ -401,6 +401,23 @@ class InstalledShell(RouterTestCase):
         p = self.zsh("claude-acs sw ghost >/dev/null; claude", cwd=r)
         self.assertEqual(Path(json.loads(p.stdout.splitlines()[-1])["env"]["CLAUDE_CONFIG_DIR"]).name, "personal", p.stderr)
 
+    def test_herdr_session_named_for_an_account_beats_rules(self):
+        # the herdr-cmux block's name matcher, as installed above the router block
+        z = self.home / ".zshrc"
+        z.write_text(z.read_text() +
+            "_herdr_session_account() { local d b=; for d in $2/*(N/); do\n"
+            "  [[ $1 == ${d:t} || $1 == *-${d:t} ]] && b=${d:t}; done; print -r -- $b; }\n")
+        self.install()
+        self.rules.write_text("personal repo=side\n")
+        r = self.repo("side", "https://github.com/x/side.git")
+        acct = lambda p: Path(json.loads(p.stdout.splitlines()[-1])["env"]["CLAUDE_CONFIG_DIR"]).name
+        # session named for the default account: that is a choice, the rule does not apply
+        p = self.zsh("claude", cwd=r, HERDR_ENV="1", HERDR_SESSION="work-harrison")
+        self.assertEqual(acct(p), "harrison", p.stderr)
+        # any other session name: the shell is on the default, so the rule applies
+        p = self.zsh("claude", cwd=r, HERDR_ENV="1", HERDR_SESSION="scratch")
+        self.assertEqual(acct(p), "personal", p.stderr)
+
     def test_router_first_on_path(self):
         self.install()
         p = self.zsh("whence -p claude; whence -p claude-route")
