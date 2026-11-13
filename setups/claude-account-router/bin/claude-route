@@ -13,6 +13,8 @@ usage: claude-route <command>
   pin <account>        pin this repo (all its worktrees) to an account: git config claude.account
   unpin                remove this repo's pin
   run <account> [args] run claude on that account once (CLAUDE_ROUTE_ACCOUNT)
+  status               each saved account: logged in?, email, plan, when the login expires
+  login <account> [..] sign that account in again (claude auth login, email prefilled)
   rules                show the rules file
   edit                 open the rules file in $EDITOR
   log [n]              last n routing decisions (default 20)
@@ -29,8 +31,13 @@ case $cmd in
     print -r -- "reason:  $CR_REASON"
     print -r -- "folder:  ${CR_CWD/#$HOME/~}"
     for k in repo remote branch; do v=$(_cr_fact $k); [[ -n $v ]] && print -r -- "$k:$(printf '%*s' $((8 - ${#k})) '')$v"; done
-    [[ -n $ORCA_PANE_KEY ]] && print -r -- "context: Orca pane"
-    [[ -n $HERDR_SESSION ]] && print -r -- "context: herdr session $HERDR_SESSION"
+    print -r -- "app:     $(_cr_fact app)"
+    if _cr_in_orca; then
+      _cr_orca_names
+      if [[ -n ${CR_FACTS[orca_error]} ]]; then print -r -- "orca:    ${CR_FACTS[orca_error]}"
+      else print -r -- "project: ${CR_FACTS[project]:-(none)}"; print -r -- "workspace: ${CR_FACTS[workspace]:-(none)}"; fi
+    fi
+    [[ -n $HERDR_SESSION ]] && print -r -- "herdr:   session $HERDR_SESSION"
     if [[ $CR_ACTION == switch ]] && ! _cr_account_exists "$CR_ACCOUNT"; then
       print -r -- "warning: account '$CR_ACCOUNT' is not saved; claude would refuse to start"; exit 1
     fi
@@ -45,7 +52,12 @@ case $cmd in
       if ! _cr_valid_name "$a"; then print -r -- "line $n: bad account name '$a'"; bad=1; continue; fi
       _cr_account_exists "$a" || { print -r -- "line $n: account '$a' is not saved under ${CLAUDE_ACCOUNT_STORE/#$HOME/~}"; bad=1; }
       CR_CWD=$PWD; CR_FACTS=()
-      for c in ${words[2,-1]}; do _cr_cond "$c"; (( $? == 2 )) && { print -r -- "line $n: bad condition '$c'"; bad=1; }; done
+      for c in ${words[2,-1]}; do
+        _cr_cond "$c"; case $? in
+          2) print -r -- "line $n: bad condition '$c'"; bad=1 ;;
+          3) print -r -- "line $n: $c: $CR_COND_ERROR" ;;
+        esac
+      done
     done < $f
     (( bad )) || print -r -- "ok: ${f/#$HOME/~}"
     exit $bad ;;
@@ -59,6 +71,38 @@ case $cmd in
   run)
     a=${1:?usage: claude-route run <account> [claude args]}; shift
     CLAUDE_ROUTE_ACCOUNT=$a exec "${self:h}/claude" "$@" ;;
+  status)
+    py=${commands[python3]:-/usr/bin/python3}; warn=0
+    for a in $CLAUDE_ACCOUNT_STORE/*/settings.json(N:h:t); do
+      out=$(CLAUDE_ROUTE_ACCOUNT=$a CLAUDE_ROUTER_LOG=/dev/null "${self:h}/claude" auth status --json 2>/dev/null)
+      "$py" -I -c '
+import datetime, json, sys
+a, raw = sys.argv[1], sys.argv[2]
+try:
+    d = json.loads(raw)
+except ValueError:
+    print("%-10s could not read status" % a); sys.exit(1)
+if not d.get("loggedIn"):
+    print("%-10s NOT LOGGED IN  -> claude-route login %s" % (a, a)); sys.exit(1)
+line = "%-10s %s  %s" % (a, d.get("email") or "?", d.get("subscriptionType") or d.get("planTier") or "")
+exp, rc = d.get("loginExpiresAt"), 0
+if exp:
+    t = datetime.datetime.fromisoformat(exp.replace("Z", "+00:00"))
+    days = (t - datetime.datetime.now(datetime.timezone.utc)).days
+    when = t.astimezone().strftime("%Y-%m-%d")
+    line += ("  login EXPIRED %s" % when) if days < 0 else ("  login expires %s (%d days)" % (when, days))
+    if days < 7:
+        line += "  -> claude-route login %s" % a; rc = 1
+print(line); sys.exit(rc)
+' "$a" "$out" || warn=1
+    done
+    exit $warn ;;
+  login)
+    a=${1:?usage: claude-route login <account> [claude auth login options]}; shift
+    _cr_account_exists "$a" || { print -ru2 -- "account '$a' is not saved under ${CLAUDE_ACCOUNT_STORE/#$HOME/~}"; exit 1; }
+    em=; [[ -r $CLAUDE_ACCOUNT_STORE/$a.email ]] && em=${$(<$CLAUDE_ACCOUNT_STORE/$a.email)//[[:space:]]/}
+    [[ $em == [^@]##@[^@]## ]] || em=
+    CLAUDE_ROUTE_ACCOUNT=$a exec "${self:h}/claude" auth login ${em:+--email} ${em:+$em} "$@" ;;
   rules) [[ -r $CLAUDE_ROUTER_RULES ]] && cat "$CLAUDE_ROUTER_RULES" || print -r -- "no rules file at $CLAUDE_ROUTER_RULES" ;;
   edit) exec ${EDITOR:-vi} "$CLAUDE_ROUTER_RULES" ;;
   log) tail -n ${1:-20} "$CLAUDE_ROUTER_LOG" 2>/dev/null || print -r -- "no decisions logged yet" ;;

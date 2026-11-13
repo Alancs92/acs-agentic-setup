@@ -22,12 +22,29 @@ FAKE_CLAUDE = r"""#!/bin/sh
 # Reports what it was started with, as JSON on stdout.
 python3 -I - "$@" <<'PY'
 import json, os, sys
+if sys.argv[1:3] == ["auth", "status"]:   # claude-route status
+    acct = os.path.basename(os.environ.get("CLAUDE_CONFIG_DIR", ""))
+    print(json.dumps({"loggedIn": acct != "personal", "email": acct + "@example.com",
+                      "subscriptionType": "team", "loginExpiresAt": "2099-01-01T00:00:00.000Z"}))
+    sys.exit(0)
 keys = ["CLAUDE_CONFIG_DIR", "DISABLE_TELEMETRY", "OTEL_SDK_DISABLED", "CLAUDE_ROUTER_SHELL"]
 print(json.dumps({"args": sys.argv[1:], "cwd": os.getcwd(),
                   "env": {k: os.environ.get(k) for k in keys}}))
 PY
 [ -n "$FAKE_STDIN" ] && cat
 exit "${FAKE_EXIT:-0}"
+"""
+
+
+FAKE_ORCA = r"""#!/bin/sh
+# A stand-in for the Orca CLI: worktree list / project list from $FAKE_ORCA_DIR.
+[ -n "$FAKE_ORCA_DIR" ] && touch "$FAKE_ORCA_DIR/called"
+[ -n "$FAKE_ORCA_FAIL" ] && { echo "runtime not reachable" >&2; exit 1; }
+case "$1 $2" in
+  "worktree list") cat "$FAKE_ORCA_DIR/worktrees.json" ;;
+  "project list")  cat "$FAKE_ORCA_DIR/projects.json" ;;
+  *) exit 2 ;;
+esac
 """
 
 
@@ -342,6 +359,105 @@ class Cli(RouterTestCase):
     def test_pin_rejects_unsaved_account(self):
         r = self.repo("side")
         self.assertEqual(self.route("pin", "ghost", cwd=r).returncode, 1)
+
+
+class Orca(RouterTestCase):
+    """project=, workspace= and app= against a fake Orca CLI."""
+
+    def setUp(self):
+        super().setUp()
+        self.odir = self.tmp / "orca"
+        self.odir.mkdir()
+        (self.odir / "orca").write_text(FAKE_ORCA)
+        (self.odir / "orca").chmod(0o755)
+        self.side = self.repo("side", "https://github.com/x/side.git")
+        # as Orca 1.4 reports them: a folder project is named by the worktree's projectId;
+        # a git project has none there and lists its repos in sourceRepoIds
+        wt = lambda rid, path, name, pid=None: {"id": f"{rid}::{path}", "repoId": rid,
+                                                "projectId": pid, "path": str(path), "displayName": name}
+        (self.odir / "worktrees.json").write_text(json.dumps({"result": {"worktrees": [
+            wt("r1", self.work, "work-root", "repo:r1"), wt("r2", self.side, "side-feature")]}}))
+        (self.odir / "projects.json").write_text(json.dumps({"result": {"projects": [
+            {"id": "repo:r1", "displayName": "Everything", "sourceRepoIds": ["r1"]},
+            {"id": "github:x/side", "displayName": "Side Hustle", "sourceRepoIds": ["r2"]}]}}))
+
+    def orca_env(self, **extra):
+        return self.shell_env(CLAUDE_ROUTER_ORCA=str(self.odir / "orca"), FAKE_ORCA_DIR=str(self.odir), **extra)
+
+    def test_project_by_worktree_id(self):
+        self.write_rules("personal project=side*\n")    # display names ignore case
+        env = self.orca_env(ORCA_PANE_KEY="t:p", ORCA_WORKTREE_ID=f"r2::{self.side}")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=env)), "personal")
+
+    def test_project_by_folder_for_the_chat_view(self):
+        # Orca's chat view passes only ORCA_USER_DATA_PATH; the deepest Orca folder wins
+        self.write_rules("personal project=Side?Hustle\n")
+        sub = self.side / "src"
+        sub.mkdir()
+        env = self.orca_env(ORCA_USER_DATA_PATH=str(self.tmp))
+        self.assertEqual(self.account(self.run_claude(cwd=sub, env=env)), "personal")
+        self.assertEqual(self.account(self.run_claude(cwd=self.work, env=env)), "harrison")
+
+    def test_folder_project(self):
+        self.write_rules("personal project=everything\n")
+        env = self.orca_env(ORCA_PANE_KEY="t:p", ORCA_WORKTREE_ID=f"r1::{self.work}")
+        self.assertEqual(self.account(self.run_claude(cwd=self.work, env=env)), "personal")
+
+    def test_workspace(self):
+        self.write_rules("personal workspace=*-feature\n")
+        env = self.orca_env(ORCA_PANE_KEY="t:p", ORCA_WORKTREE_ID=f"r2::{self.side}")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=env)), "personal")
+
+    def test_same_repo_different_app(self):
+        # one repo, two accounts: personal inside Orca, harrison everywhere else
+        self.write_rules("personal repo=side app=orca\nharrison repo=side\n")
+        orca = self.orca_env(ORCA_PANE_KEY="t:p")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=orca)), "personal")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side)), "harrison")
+        self.write_rules("personal app=herdr\n")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=self.shell_env(HERDR_ENV="1"))), "personal")
+        self.write_rules("personal app=terminal\n")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=orca)), "harrison")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side)), "personal")
+
+    def test_outside_orca_project_rules_do_not_ask_orca(self):
+        self.write_rules("personal project=*\n")
+        self.assertEqual(self.account(self.run_claude(cwd=self.side, env=self.orca_env())), "harrison")
+        self.assertFalse((self.odir / "called").exists())
+
+    def test_orca_unreachable_refuses_instead_of_guessing(self):
+        self.write_rules("personal project=Side*\n")
+        p = self.run_claude(cwd=self.side, env=self.orca_env(ORCA_PANE_KEY="t:p", FAKE_ORCA_FAIL="1"))
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("could not ask Orca", p.stderr)
+        self.assertEqual(p.stdout, "")
+        # a rule that does not need Orca still works, and an earlier match never asks
+        self.write_rules("harrison repo=side\npersonal project=Side*\n")
+        p = self.run_claude(cwd=self.side, env=self.orca_env(ORCA_PANE_KEY="t:p", FAKE_ORCA_FAIL="1"))
+        self.assertEqual(self.account(p), "harrison")
+
+    def test_which_shows_orca_names(self):
+        p = self.route("which", str(self.side), env=self.orca_env(ORCA_PANE_KEY="t:p", ORCA_WORKTREE_ID=f"r2::{self.side}"))
+        self.assertIn("project: Side Hustle", p.stdout)
+        self.assertIn("workspace: side-feature", p.stdout)
+        self.assertIn("app:     orca", p.stdout)
+
+
+class Login(RouterTestCase):
+    def test_status_flags_logged_out_accounts(self):
+        p = self.route("status")
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("harrison   harrison@example.com  team  login expires 2099-01-01", p.stdout)
+        self.assertIn("personal   NOT LOGGED IN  -> claude-route login personal", p.stdout)
+
+    def test_login_runs_on_that_account_with_email_prefilled(self):
+        (self.store / "personal.email").write_text("me@example.com\n")
+        out = self.launched(self.route("login", "personal"))
+        self.assertEqual(Path(out["env"]["CLAUDE_CONFIG_DIR"]).name, "personal")
+        self.assertEqual(out["args"], ["auth", "login", "--email", "me@example.com"])
+        out = self.launched(self.route("login", "harrison", "--sso"))
+        self.assertEqual(out["args"], ["auth", "login", "--sso"])
+        self.assertEqual(self.route("login", "ghost").returncode, 1)
 
 
 class InstalledShell(RouterTestCase):

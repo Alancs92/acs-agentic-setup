@@ -18,7 +18,7 @@ sourcing `~/claude_code_toggle.sh` and calling it.
 | File | Installs to | Role |
 |---|---|---|
 | `bin/claude` | `~/.local/share/claude-router/bin/` | The wrapper |
-| `bin/claude-route` | same | `which`, `check`, `pin`, `run`, `log` |
+| `bin/claude-route` | same | `which`, `check`, `pin`, `run`, `status`, `login`, `log` |
 | `lib/claude-router.zsh` | `~/.local/share/claude-router/lib/` | The decision logic, shared by both |
 | `config/rules.example` | `~/.config/claude-router/rules` (first install only) | Rule syntax and examples |
 | `config/zsh/claude-router.zsh` | managed block in `~/.zshrc` | Puts the router first on PATH; marks a manual `claude-acs sw` as a choice |
@@ -67,16 +67,45 @@ must hold; a line with no conditions always matches.
 | `repo=<glob>` | repo name from origin, else the folder holding `.git`/`.bare` | insensitive |
 | `branch=<glob>` | current branch | sensitive |
 | `host=<glob>` | short hostname | insensitive |
+| `app=<glob>` | where it runs: `orca`, `herdr`, `cmux`, or `terminal` when none of them (herdr inside cmux is both) | insensitive |
+| `project=<glob>` | the **Orca project**'s display name (the name in Orca's sidebar; rename it there) | insensitive |
+| `workspace=<glob>` | the **Orca workspace**'s display name (one worktree in Orca) | insensitive |
 | `env:NAME=<glob>` | an environment variable; `env:NAME=?*` means set and non-empty | sensitive |
 
-Prefix `!` to negate. Globs are zsh extended globs, and `*` also matches `/`.
+Prefix `!` to negate. Globs are zsh extended globs, and `*` also matches `/`; write a space in
+a name as `?` (`project=Side?Hustle`). Conditions on one line combine with AND; for OR, write
+more lines. So one repo can go to different accounts depending on where it is opened:
 
 ```text
+personal  remote=git@github-personal:*           # cloned with the personal SSH key
 personal  remote=*[:/]Alancs92/*                 # personal GitHub repos
-personal  path=~/repos/side-projects
-personal  env:ORCA_PANE_KEY=?* repo=textx-v2     # only in Orca, only this repo
+personal  project=Side* app=orca                 # Orca projects named Side..., only in Orca
+personal  repo=textx-v2 app=orca                 # the vault: personal in Orca...
+harrison  repo=textx-v2                          # ...work everywhere else
 harrison  branch=V2B-*
 ```
+
+`project=` and `workspace=` ask the running Orca (its CLI: `orca worktree list`, `orca project
+list`, about 0.3 s each, only when such a rule is reached, only inside Orca). Outside Orca they
+never match. If Orca can't be asked when one of them decides the launch, the router refuses to
+start `claude` rather than guess (`CLAUDE_ROUTER_DISABLE=1 claude` to bypass once). Put rules
+that don't need Orca first: a launch that matches an earlier line never asks Orca.
+
+## Logins
+
+The router only chooses which account folder `claude` runs on; each account keeps its own
+login there, as with `claude-acs`, and Claude Code refreshes it on its own. `claude-acs switch`
+only points at the folder and never restores old credentials, so a new login sticks. Orca's
+own account switcher is not used, so Orca never signs anything in or out.
+
+```bash
+claude-route status            # each account: logged in?, email, plan, when the login expires
+claude-route login harrison    # claude auth login on that account, email prefilled from <account>.email
+claude-route login harrison --sso
+```
+
+`status` exits 1 and names the command to run when an account is logged out or expires within
+7 days.
 
 ## Using it with Orca
 
@@ -88,9 +117,12 @@ Tested end to end against Orca 1.4.258 (`scripts/e2e_orca.sh`):
   typed in an Orca terminal (what a restored pane runs: `claude --resume <id>` in the
   worktree), `orca agent launch --surface terminal`, and the native chat view
   (`--surface chat`), which Orca spawns without a shell.
-- Orca exports `ORCA_PANE_KEY`, `ORCA_TAB_ID`, `ORCA_WORKSPACE_ID` and `ORCA_WORKTREE_ID` into
-  its terminals, so `env:` rules can single out Orca (`env:ORCA_PANE_KEY=?*`) or one Orca
-  workspace.
+- Route by **Orca project**: `project=<name>`, with the project named in Orca's sidebar. Orca
+  doesn't pass the project to `claude`, so the router looks it up: from `ORCA_WORKTREE_ID`
+  (`<repoId>::<path>`) in terminals, from the folder in the chat view (which only gets
+  `ORCA_USER_DATA_PATH`). A git project is `github:<owner>/<repo>` and lists its repos in
+  `sourceRepoIds`; a folder project is `repo:<id>`.
+- `app=orca` singles out Orca without naming a project.
 - To set a repo's account from inside Orca, run `claude-route pin <account>` in any of its
   terminals.
 - Orca's usage readout runs `claude` from its own data folder, so it reports the default
@@ -115,12 +147,13 @@ Open shells pick it up when they restart. To turn the router off for one launch:
 Tests (fake `HOME`, fake accounts, fake `claude`; nothing live is touched):
 
 ```bash
-python3 setups/claude-account-router/scripts/test_claude_router.py   # 36 unit and shell tests
+python3 setups/claude-account-router/scripts/test_claude_router.py   # 46 unit and shell tests
 setups/claude-account-router/scripts/e2e_orca.sh                     # Orca end to end, if installed
 ```
 
 `e2e_orca.sh` runs a headless `orca serve` on 127.0.0.1 with pairing off, its own data dir,
-fake accounts and a fake `claude`. Orca starts terminal shells through `/usr/bin/login`,
+fake accounts and a fake `claude`. Its rule routes by an Orca project name it sets with
+`orca project setup-update --display-name`, so a pass proves the project lookup inside Orca. Orca starts terminal shells through `/usr/bin/login`,
 which resets `HOME` to the real one, so the script reaches those shells through `ZDOTDIR`
 and a toggle copy whose account store is inside the sandbox. A sandbox that only changes
 `HOME` is not enough: the shells then load the real `~/.zshrc` and accounts. Re-run it after
@@ -129,7 +162,7 @@ each Orca update.
 ## Config
 
 No secrets. Environment overrides: `CLAUDE_ROUTER_RULES`, `CLAUDE_ROUTER_TOGGLE`,
-`CLAUDE_ROUTER_LOG`, `CLAUDE_ROUTER_MANAGED_DIRS`, `CLAUDE_ROUTER_REAL_CLAUDE`,
+`CLAUDE_ROUTER_LOG`, `CLAUDE_ROUTER_MANAGED_DIRS`, `CLAUDE_ROUTER_REAL_CLAUDE`, `CLAUDE_ROUTER_ORCA` (the Orca CLI),
 `CLAUDE_ROUTER_VERBOSE=1` (print the decision to stderr), `CLAUDE_ROUTER_DISABLE=1`.
 
 Each launch appends one line to `~/.local/state/claude-router/decisions.log`: time, account,

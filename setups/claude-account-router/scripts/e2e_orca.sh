@@ -56,7 +56,9 @@ chmod +x "$X/realbin/claude"
 mkdir -p "$X/router"
 cp -R "$HERE/bin" "$HERE/lib" "$X/router/"
 mkdir -p "$H/.config/claude-router"
-printf 'personal remote=*[:/]Alancs92/*\n' > "$H/.config/claude-router/rules"
+# Routes by the Orca project's display name (set below), not the repo: the side repo's
+# remote is not mentioned anywhere, so a pass proves the project lookup inside Orca.
+printf 'personal project=Side?Hustle app=orca\n' > "$H/.config/claude-router/rules"
 {
   echo "source $X/toggle.sh"
   echo "path=($X/realbin \$path)"
@@ -86,6 +88,9 @@ echo "orca serve (127.0.0.1:$PORT, no pairing)"
 for _ in $(seq 1 60); do grep -q orca_server_ready "$X/serve.log" 2>/dev/null && break; sleep 1; done
 grep -q orca_server_ready "$X/serve.log" || { echo "orca serve did not start:"; tail -5 "$X/serve.log"; exit 1; }
 for r in side work; do clean "$ORCA" repo add --path "$H/repos/$r" --json >/dev/null; done
+SETUP="$(clean "$ORCA" project setups --json | python3 -I -c 'import sys,json; print(next(s["id"] for s in json.load(sys.stdin)["result"]["setups"] if s["path"].endswith("/repos/side")))')"
+clean "$ORCA" project setup-update --setup "$SETUP" --display-name "Side Hustle" --json >/dev/null
+check "project renamed" "Side Hustle" "$(clean "$ORCA" project list --json | python3 -I -c 'import sys,json; print(" ".join(p["displayName"] for p in json.load(sys.stdin)["result"]["projects"] if "Side" in p["displayName"]))')"
 
 echo "1. claude typed in an Orca terminal (what a restored pane runs)"
 for r in side work; do

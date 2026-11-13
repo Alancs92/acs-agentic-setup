@@ -17,6 +17,8 @@
 : ${CLAUDE_ROUTER_LOG:=${XDG_STATE_HOME:-$HOME/.local/state}/claude-router/decisions.log}
 # Config dirs another tool chose for us (Orca's managed accounts). Rules override these.
 : ${CLAUDE_ROUTER_MANAGED_DIRS:='*/orca/claude-profiles/*'}
+# The Orca CLI, used only when a rule asks for project= or workspace= inside Orca.
+: ${CLAUDE_ROUTER_ORCA:=${commands[orca]:-/Applications/Orca.app/Contents/Resources/bin/orca}}
 
 typeset -g CR_ACCOUNT CR_ACTION CR_REASON CR_CWD
 typeset -gA CR_FACTS
@@ -55,6 +57,55 @@ _cr_dir_is_auto() {
   [[ -n $def && ${dir:A} == ${CLAUDE_ACCOUNT_STORE:A}/$def ]]
 }
 
+# Is this launch inside Orca? Its terminals carry ORCA_PANE_KEY; its chat view only
+# ORCA_USER_DATA_PATH.
+_cr_in_orca() { [[ -n $ORCA_PANE_KEY || -n $ORCA_WORKTREE_ID || -n $ORCA_USER_DATA_PATH ]] }
+
+# Orca's names for this launch: the project and the workspace (Orca's worktree) display
+# names. Asks the running Orca: the worktree by ORCA_WORKTREE_ID, else the one whose folder
+# holds the launch folder, then its project. Sets CR_FACTS[project], [workspace], and
+# [orca_error] when Orca could not be asked.
+_cr_orca_names() {
+  CR_FACTS[project]= CR_FACTS[workspace]= CR_FACTS[orca_error]=
+  _cr_in_orca || return 0
+  local out py=${commands[python3]:-/usr/bin/python3}
+  if [[ ! -x $CLAUDE_ROUTER_ORCA ]]; then
+    CR_FACTS[orca_error]="Orca CLI not found ($CLAUDE_ROUTER_ORCA)"; return 0
+  fi
+  out=$("$py" -I -c '
+import json, os, subprocess, sys
+orca, wid, cwd = sys.argv[1:4]
+def ask(*args):
+    p = subprocess.run([orca, *args, "--json"], capture_output=True, text=True,
+                       timeout=5, stdin=subprocess.DEVNULL)
+    if p.returncode:
+        sys.exit("orca %s %s failed" % args[:2])
+    return json.loads(p.stdout)["result"]
+real = lambda p: os.path.realpath(p) if p else ""
+cwd = real(cwd)
+wts = ask("worktree", "list", "--limit", "10000")["worktrees"]
+w = next((x for x in wts if wid and x.get("id") == wid), None)
+if w is None:
+    inside = [x for x in wts if x.get("path") and
+              (cwd == real(x["path"]) or cwd.startswith(real(x["path"]).rstrip("/") + "/"))]
+    w = max(inside, key=lambda x: len(real(x["path"])), default=None)
+if w is None:
+    print("\t"); sys.exit(0)
+# a git project is keyed by its remote (github:owner/repo) and lists its repos in
+# sourceRepoIds; a folder project is repo:<id>, also named by the worktree projectId
+rid = w.get("repoId") or (w.get("id") or "").split("::")[0]
+pj = next((p for p in ask("project", "list")["projects"]
+           if (w.get("projectId") and p.get("id") == w["projectId"])
+           or rid in (p.get("sourceRepoIds") or [])), {})
+clean = lambda v: (v or "").replace("\t", " ").replace("\n", " ")
+print(clean(pj.get("displayName")) + "\t" + clean(w.get("displayName")))
+' "$CLAUDE_ROUTER_ORCA" "$ORCA_WORKTREE_ID" "$CR_CWD" 2>&1)
+  if [[ $? -ne 0 || $out != *$'\t'* ]]; then
+    CR_FACTS[orca_error]="could not ask Orca for the project (${${out//$'\n'/ }[1,120]})"; return 0
+  fi
+  CR_FACTS[project]=${out%%$'\t'*} CR_FACTS[workspace]=${out#*$'\t'}
+}
+
 # Lazily computed facts about the launch directory.
 _cr_fact() {
   local key=$1 v=
@@ -64,6 +115,13 @@ _cr_fact() {
       host)   v=${HOST:-$(hostname -s 2>/dev/null)} ;;
       remote) v=$(git -C "$CR_CWD" remote get-url origin 2>/dev/null) ;;
       branch) v=$(git -C "$CR_CWD" branch --show-current 2>/dev/null) ;;
+      project|workspace|orca_error)
+        _cr_orca_names; print -r -- "${CR_FACTS[$key]}"; return ;;
+      app)   # every app this launch runs inside, space-separated; terminal if none
+        _cr_in_orca && v+=" orca"
+        [[ -n $HERDR_ENV ]] && v+=" herdr"
+        [[ -n $CMUX_SURFACE_ID || -n $HERDR_HOST_CMUX_SURFACE ]] && v+=" cmux"
+        v=${v# }; [[ -n $v ]] || v=terminal ;;
       repo)
         v=$(_cr_fact remote); v=${${v%/}%.git}; v=${v##*[/:]}
         if [[ -z $v ]]; then   # no origin: the folder holding .git or .bare
@@ -78,7 +136,8 @@ _cr_fact() {
 
 # One condition: key=glob, env:NAME=glob, either negated with a leading !.
 # Globs are zsh patterns, and * also matches /. path= matches the folder or anything in it.
-# remote, repo and host ignore case; path, branch and env do not.
+# remote, repo, host, project, workspace and app ignore case; path, branch and env do not.
+# Returns 2 for a malformed condition, 3 when Orca could not be asked (CR_COND_ERROR).
 _cr_cond() {
   local c=$1 neg=0 key pat val
   [[ $c == '!'* ]] && { neg=1; c=${c#!}; }
@@ -92,14 +151,27 @@ _cr_cond() {
     path)
       [[ $pat == '~'* ]] && pat=$HOME${pat#'~'}
       pat=${pat%/}
-      val=$(_cr_fact path)
+      _cr_fact path >/dev/null; val=${CR_FACTS[path]}
       if [[ $val == ${~pat} || $val == ${~pat}/* ]]; then (( neg )) && return 1 || return 0; fi
       (( neg )) && return 0 || return 1 ;;
+    project|workspace)  # Orca's display names; empty outside Orca
+      (( ${+CR_FACTS[project]} )) || _cr_orca_names
+      if [[ -n ${CR_FACTS[orca_error]} ]]; then typeset -g CR_COND_ERROR=${CR_FACTS[orca_error]}; return 3; fi
+      val=${CR_FACTS[$key]}   # no Orca project here: never matches, so !project= does
+      if [[ -n $val && $val == (#i)${~pat} ]]; then (( neg )) && return 1 || return 0; fi
+      (( neg )) && return 0 || return 1 ;;
+    app)                # matches if any of the apps does: orca, herdr, cmux, terminal
+      local a
+      _cr_fact app >/dev/null
+      for a in ${=CR_FACTS[app]}; do
+        if [[ $a == (#i)${~pat} ]]; then (( neg )) && return 1 || return 0; fi
+      done
+      (( neg )) && return 0 || return 1 ;;
     remote|repo|host)   # case-insensitive, like GitHub owners and hostnames
-      val=$(_cr_fact $key)
+      _cr_fact $key >/dev/null; val=${CR_FACTS[$key]}
       if [[ $val == (#i)${~pat} ]]; then (( neg )) && return 1 || return 0; fi
       (( neg )) && return 0 || return 1 ;;
-    branch) val=$(_cr_fact $key) ;;
+    branch) _cr_fact $key >/dev/null; val=${CR_FACTS[$key]} ;;
     *) return 2 ;;
   esac
   if [[ $val == ${~pat} ]]; then (( neg )) && return 1 || return 0; fi
@@ -125,6 +197,7 @@ _cr_match_rules() {
     for c in ${words[2,-1]}; do
       _cr_cond "$c"; rc=$?
       (( rc == 2 )) && { CR_RULE_ERROR="line $n: bad condition '$c'"; return 2; }
+      (( rc == 3 )) && { CR_RULE_ERROR="line $n ($c): $CR_COND_ERROR"; return 2; }
       (( rc )) && break
     done
     if (( rc == 0 )); then CR_RULE_ACCOUNT=$acct CR_RULE_LINE=$n; return 0; fi
