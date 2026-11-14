@@ -1,0 +1,24 @@
+# claude-router rules: which claude-acs account a `claude` launch uses.
+# One rule per line:  <account> [condition ...]   first match wins; every condition must hold.
+# A line with no conditions always matches: put it last as a catch-all, or leave it out to
+# fall back to the default account (claude-acs df).
+#
+# Conditions (zsh extended globs; * also matches /; prefix ! to negate):
+#   path=<glob>     the launch folder or anything inside it (~ allowed)
+#   remote=<glob>   git remote get-url origin (case-insensitive)
+#   repo=<glob>     repo name, from origin, else the folder holding .git/.bare (case-insensitive)
+#   branch=<glob>   current branch
+#   host=<glob>     short hostname (case-insensitive)
+#   env:NAME=<glob> an environment variable; env:NAME=?* means "set and non-empty"
+#
+# These only apply when nobody chose an account already: an explicit `claude-acs sw`,
+# a herdr session routed by name, CLAUDE_CONFIG_DIR set by a script, or
+# CLAUDE_ROUTE_ACCOUNT all win. A repo pin (claude-route pin <acct>) beats these rules.
+# Check a folder with: claude-route which [dir]
+#
+# Examples:
+#   personal  remote=*[:/]Alancs92/*                 personal GitHub repos
+#   harrison  remote=*[:/]harrison-ai/*              work org repos
+#   personal  path=~/repos/side-projects
+#   personal  env:ORCA_PANE_KEY=?* repo=textx-v2     only inside Orca, only this repo
+#   harrison  branch=V2B-*
