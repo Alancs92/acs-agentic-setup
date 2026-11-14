@@ -10,7 +10,7 @@ CLAUDE_DEFAULT_FILE="$CLAUDE_ACCOUNT_STORE/.default"
 
 # Space-separated list of account names that default to telemetry ON.
 # Anything not in this list defaults to telemetry OFF when switched to.
-CLAUDE_OTEL_ORG_ACCOUNTS="${CLAUDE_OTEL_ORG_ACCOUNTS:-harrison}"
+CLAUDE_OTEL_ORG_ACCOUNTS="${CLAUDE_OTEL_ORG_ACCOUNTS:-harrison hai-enterprise}"
 
 # ─── Name validation ─────────────────────────────────────────────────────────
 
@@ -31,10 +31,11 @@ __claude_acs_validate_name() {
 # ─── Telemetry (OpenTelemetry) helpers ──────────────────────────────────────
 
 _claude_otel_is_org_account() {
-  local name="$1" org
-  for org in $CLAUDE_OTEL_ORG_ACCOUNTS; do
-    [ "$name" = "$org" ] && return 0
-  done
+  # case, not `for org in $LIST`: zsh does not word-split $LIST, so a list of two
+  # names would never match either of them.
+  case " $CLAUDE_OTEL_ORG_ACCOUNTS " in
+    *" $1 "*) return 0 ;;
+  esac
   return 1
 }
 
