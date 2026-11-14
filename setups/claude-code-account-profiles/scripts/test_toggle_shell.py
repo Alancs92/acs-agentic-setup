@@ -198,6 +198,28 @@ class RegroupLaunch(unittest.TestCase):
         self.assertIn("regroup", out)
 
 
+class OrgAccountTelemetry(unittest.TestCase):
+    """Switching to an org account clears the privacy opt-outs, in zsh and bash."""
+
+    def _env_after_switch(self, shell, account, org_list, toggle=TRACKED):
+        with tempfile.TemporaryDirectory() as home:
+            os.makedirs(os.path.join(home, ".claude-accounts", account))
+            script = ('export DISABLE_TELEMETRY=1 OTEL_SDK_DISABLED=true; source %s >/dev/null 2>&1; '
+                      'claude-acs switch %s >/dev/null; echo "${DISABLE_TELEMETRY:-}|${OTEL_SDK_DISABLED:-}"'
+                      % (toggle, account))
+            env = {"HOME": home, "PATH": "/usr/bin:/bin", "CLAUDE_OTEL_ORG_ACCOUNTS": org_list}
+            return subprocess.run([shell, "-c", script], capture_output=True, text=True, env=env).stdout.strip()
+
+    def test_every_name_in_a_multi_name_list_counts(self):
+        # zsh does not word-split $LIST: a `for org in $LIST` loop matched no name at all
+        toggle = os.environ.get("TOGGLE_UNDER_TEST", TRACKED)
+        for shell in ("zsh", "bash"):
+            for acct in ("harrison", "hai-enterprise"):
+                self.assertEqual(self._env_after_switch(shell, acct, "harrison hai-enterprise", toggle), "|", (shell, acct))
+            for acct in ("personal", "hai"):
+                self.assertEqual(self._env_after_switch(shell, acct, "harrison hai-enterprise", toggle), "1|true", (shell, acct))
+
+
 class TrackedCopyMatchesLive(unittest.TestCase):
 
     def test_tracked_copy_is_current(self):
