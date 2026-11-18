@@ -1,0 +1,12 @@
+{
+  "name": "acs-mods",
+  "owner": { "name": "acs" },
+  "description": "Personal Claude Code mods, shared across local accounts.",
+  "plugins": [
+    {
+      "name": "token-weather",
+      "source": "./token-weather",
+      "description": "A one-line forecast above the prompt: context fill and its trend, plus the 5-hour and weekly usage limits with where each is heading by its reset."
+    }
+  ]
+}
