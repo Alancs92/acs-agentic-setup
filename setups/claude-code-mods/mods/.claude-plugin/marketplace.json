@@ -1,12 +1,19 @@
 {
   "name": "acs-mods",
-  "owner": { "name": "acs" },
+  "owner": {
+    "name": "acs"
+  },
   "description": "Personal Claude Code mods, shared across local accounts.",
   "plugins": [
     {
       "name": "token-weather",
       "source": "./token-weather",
       "description": "A one-line forecast above the prompt: context fill and its trend, plus the 5-hour and weekly usage limits with where each is heading by its reset."
+    },
+    {
+      "name": "next-steps-plus",
+      "source": "./next-steps-plus",
+      "description": "After each turn, suggests up to three next prompts, informed by git state, the branch's PR and checks, and your notes. Hover or focus one to see its full prompt."
     }
   ]
 }

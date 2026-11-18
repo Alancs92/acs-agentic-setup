@@ -18,13 +18,15 @@ This setup holds the mods I run on every account:
 | Mod | From | What it does |
 |---|---|---|
 | `token-weather` | `acs-mods` (mine, this folder) | One line above the prompt: context fill with a trend sparkline, tokens added per turn and turns left; the 5-hour and weekly usage limits with where each lands at its reset (red when the limit is hit first). |
-| `next-steps` | `claude-community` (Anthropic's community marketplace) | Suggests up to three next prompts when a turn ends; press 1, 2 or 3 to draft one, 0 to dismiss. |
+| `next-steps-plus` | `acs-mods` (mine, adapted from the community `next-steps`) | Suggests up to three next prompts when a turn ends, informed by the repo's git state, the branch's PR and checks, and my notes; hover or focus one to see its full prompt; 1, 2 or 3 drafts it, 0 dismisses. |
 
 ## Why
 
 The status line shows a snapshot. `token-weather` shows the movement: how fast
 the context grows per turn and whether the current pace runs out a usage
-window before it resets. Keeping the mods in a local marketplace lets every
+window before it resets. `next-steps-plus` makes the suggestions specific to
+where the work stands (a failing check, unpushed commits, the next open item in
+my notes) instead of to the conversation alone. Keeping the mods in a local marketplace lets every
 account install the same copy, and keeping them in the profile manifest stops
 `claude-acs apply-profile` from dropping them.
 
@@ -71,11 +73,16 @@ rsync -a mods/ ~/.claude/mods/
 for a in harrison personal personal2 hai-enterprise; do
   export CLAUDE_CONFIG_DIR=~/.claude-accounts/$a
   claude plugin marketplace add ~/.claude/mods
-  claude plugin marketplace add anthropics/claude-plugins-community
   claude plugin install token-weather@acs-mods
-  claude plugin install next-steps@claude-community
+  claude plugin install next-steps-plus@acs-mods
+  # Optional: notes for the suggester. Paths are local, so they stay out of this repo.
+  echo '{"notesFiles":"~/notes/{repo}/{branch_dashed}.md","notesIndexDirs":"~/notes/{repo}/handbook"}' |
+    claude plugin configure next-steps-plus@acs-mods --values-stdin
 done
 ```
+
+`next-steps-plus` options and what it reads are in
+[`mods/next-steps-plus/README.md`](mods/next-steps-plus/README.md).
 
 For the managed accounts (personal, harrison, personal2), `claude-acs
 apply-profile <account>` also enables both from the manifest. Restart running
@@ -105,10 +112,12 @@ all of them. Enabling stays per account.
   each account's `settings.json` holds its own `enabledPlugins` and
   `extraKnownMarketplaces`. Installing in one account does not turn a plugin on
   in another.
-- **`claude-community` is not registered by default.** `claude plugin install
-  next-steps@claude-community` fails with "not found in marketplace", and the
-  suggested `marketplace update` fails with "marketplace not found". Add it
-  first: `claude plugin marketplace add anthropics/claude-plugins-community`.
+- **`claude-community` is not registered by default** (only needed for the
+  original `next-steps`, which `next-steps-plus` replaces). `claude plugin
+  install next-steps@claude-community` fails with "not found in marketplace";
+  add it first with `claude plugin marketplace add anthropics/claude-plugins-community`.
+- **Two suggestion bands fight over 1/2/3.** Two plugins on one hotkey press
+  neither, so keep only one of `next-steps` and `next-steps-plus` enabled.
 - **Limit figures arrive with replies.** The 5-hour and weekly percentages are
   account-wide, but a session only gets a new reading when one of its own
   replies arrives. Usage in another session shows after this session's next
