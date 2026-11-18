@@ -8,6 +8,7 @@ repo. This is the timeline view — for the structural map, see
 
 - **Claude Code mods on every account** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). `token-weather` draws one line above the prompt: context fill with a trend sparkline, tokens per turn and turns left, and the 5-hour and weekly usage limits with where each lands at its reset (red when the pace hits the limit first). It reads the `session.measure` event, so no log parsing. It lives in a local marketplace, `acs-mods` at `~/.claude/mods`, with a tracked copy in the setup folder. `next-steps` comes from Anthropic's community marketplace. Both are installed on harrison, personal, personal2 and hai-enterprise.
 - **The profile manifest keeps the mods** ([`setups/claude-code-account-profiles/`](setups/claude-code-account-profiles/README.md)). `core` now lists `token-weather@acs-mods` and `next-steps@claude-community` and both marketplaces, so `apply-profile` no longer drops them. A `directory` marketplace path may start with `~`; `apply_profile.py` expands it when writing `settings.json`, so the repo carries no machine path. Golden personal hash is now `7d3ff968…` (21 plugins).
+- **`swift-lsp` joins the personal overlay** ([`setups/claude-code-account-profiles/`](setups/claude-code-account-profiles/README.md)), so `apply-profile` keeps it. Golden personal hash is now `37ac4972…` (22 plugins).
 
 ## 2026-11-13
 

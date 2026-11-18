@@ -39,7 +39,9 @@
   },
   "accounts": {
     "personal": {
-      "plugins_add": [],
+      "plugins_add": [
+        "swift-lsp@claude-plugins-official"
+      ],
       "plugins_remove": [],
       "skills_prune": [
         "cloudflare",
