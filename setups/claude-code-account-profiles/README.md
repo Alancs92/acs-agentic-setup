@@ -42,6 +42,14 @@ launched from `$HOME` with `CLAUDE_CONFIG_DIR` set (subshell-scoped) to
 attribution can skip regroup sessions. Test overrides: `CLAUDE_ACS_REGROUP_DIR`,
 `CLAUDE_ACS_CLAUDE_BIN`.
 
+`claude-acs discord` (`dc`) starts Claude on the personal account with the
+Discord channel plugin. It reads the bot token from 1Password into the plugin's
+`.env` (mode 600) for the session and deletes it on exit; the token is never
+exported. The 1Password account and item are not in this repo: the function
+sources them from `$CLAUDE_ACCOUNT_STORE/.discord-op`, a private file that sets
+`CLAUDE_ACS_DISCORD_OP_ACCOUNT` and `CLAUDE_ACS_DISCORD_OP_REF`. Test overrides:
+`CLAUDE_ACS_DISCORD_ACCOUNT`, `CLAUDE_ACS_DISCORD_DIR`, `CLAUDE_ACS_CLAUDE_BIN`.
+
 `claude-acs` itself is a zsh function, not a script. It lives at
 `~/claude_code_toggle.sh`, sourced from `.zshrc`, and **stays there** — it is used
 constantly and relocating it buys nothing.
@@ -57,7 +65,9 @@ cp ~/claude_code_toggle.sh setups/claude-code-account-profiles/shell/claude_code
 `scripts/test_toggle_shell.py` guards the three ways it has broken: a dispatch
 target that no longer exists, helpers named with a single underscore (Claude Code
 strips those from shell snapshots, so every subcommand fails inside Claude Code and
-nowhere else), and this copy drifting from the live file. The drift test skips
+nowhere else), and this copy drifting from the live file. It also covers which
+accounts get telemetry by default, the `discord` launch (token handling, exit code,
+clean-up, failures), and that no 1Password id lands in this public copy. The drift test skips
 where no live file exists, so it stays honest on other machines.
 
 ## Reproducing it
