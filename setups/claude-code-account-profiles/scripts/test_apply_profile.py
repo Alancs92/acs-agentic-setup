@@ -12,10 +12,12 @@ import apply_profile as ap  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 MANIFEST_PATH = os.path.join(HERE, os.pardir, "profiles.json")
 
-# Personal profile as defined in the manifest = lean-18 + mattpocock-skills = 19 plugins.
+# Personal profile as defined in the manifest = lean-18 + mattpocock-skills + 2 mods = 21 plugins.
 # Base lean-18 was measured 2026-07-25 (audit: -8.7k / -20% startup tax, hash 59a9cd93...);
-# the mattpocock-skills bundle was added to core 2026-07-27.
-GOLDEN_PERSONAL_HASH = "d8e09889da378667d861ecc920e61440a6d14e78386a6eb1e0be2632b0dae057"
+# the mattpocock-skills bundle was added to core 2026-07-27 (d8e09889...), and the
+# next-steps and token-weather mods on 2026-11-18.
+GOLDEN_PERSONAL_HASH = "7d3ff9683a8d0573deb6e091759542b7bd9fff6a2191fa2345091a1a18989f86"
+PERSONAL_PLUGIN_COUNT = 21
 
 
 def load_manifest():
@@ -50,6 +52,22 @@ class ResolvePlugins(unittest.TestCase):
         self.assertTrue(any("not present" in w for w in warns))
 
 
+class ExpandMarketplaces(unittest.TestCase):
+    def test_directory_path_tilde_expands_to_home(self):
+        mkts = {
+            "local": {"source": {"source": "directory", "path": "~/.claude/mods"}},
+            "gh": {"source": {"source": "github", "repo": "a/b"}},
+        }
+        out = ap.expand_marketplaces(mkts, home="/home/me")
+        self.assertEqual(out["local"]["source"]["path"], "/home/me/.claude/mods")
+        self.assertEqual(out["gh"], mkts["gh"])
+        self.assertEqual(mkts["local"]["source"]["path"], "~/.claude/mods")  # input untouched
+
+    def test_absolute_directory_path_is_kept(self):
+        mkts = {"local": {"source": {"source": "directory", "path": "/opt/mods"}}}
+        self.assertEqual(ap.expand_marketplaces(mkts, home="/home/me"), mkts)
+
+
 class GoldenHash(unittest.TestCase):
     def test_personal_resolves_to_applied_lean_hash(self):
         manifest = load_manifest()
@@ -58,7 +76,7 @@ class GoldenHash(unittest.TestCase):
             resolved["hash"], GOLDEN_PERSONAL_HASH,
             "manifest core.plugins no longer reproduces the applied personal lean profile",
         )
-        self.assertEqual(len(resolved["effective"]), 19)
+        self.assertEqual(len(resolved["effective"]), PERSONAL_PLUGIN_COUNT)
 
     def test_hash_is_object_sorted_keys(self):
         # Hash must match sha256 of {plugin:true} with sorted keys.
@@ -111,11 +129,15 @@ class ApplyIntegration(unittest.TestCase):
                               dry_run=False, assume_yes=True, prune_skills=True)
         self.assertEqual(rc, 0)
         s = self._read_settings(acct)
-        self.assertEqual(len(s["enabledPlugins"]), 19)
+        self.assertEqual(len(s["enabledPlugins"]), PERSONAL_PLUGIN_COUNT)
         self.assertNotIn("old-plugin@m", s["enabledPlugins"])
         self.assertEqual(s["model"], "sonnet")            # preserved
         self.assertIn("Stop", s["hooks"])                 # preserved
         self.assertIn("harrison-engineering", s["extraKnownMarketplaces"])  # merged
+        # A local marketplace is written with the home directory spelled out:
+        # the manifest keeps "~" so the public repo carries no machine path.
+        local = s["extraKnownMarketplaces"]["acs-mods"]["source"]["path"]
+        self.assertEqual(local, os.path.join(os.path.expanduser("~"), ".claude", "mods"))
         # pruned real-dir skills moved to trash; kept skill stays
         self.assertFalse(os.path.exists(os.path.join(acct, "skills", "cloudflare")))
         self.assertTrue(os.path.exists(os.path.join(acct, "skills", ap.PRUNED_DIRNAME, "cloudflare")))
@@ -128,7 +150,7 @@ class ApplyIntegration(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(os.path.exists(os.path.join(acct, "skills", "cloudflare")))  # not pruned
         self.assertFalse(os.path.exists(os.path.join(acct, "skills", ap.PRUNED_DIRNAME)))
-        self.assertEqual(len(self._read_settings(acct)["enabledPlugins"]), 19)  # plugins still applied
+        self.assertEqual(len(self._read_settings(acct)["enabledPlugins"]), PERSONAL_PLUGIN_COUNT)  # plugins still applied
 
     def test_backup_created(self):
         acct = self._make_account("personal", ["old@m"])

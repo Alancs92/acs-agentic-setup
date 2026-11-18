@@ -20,13 +20,17 @@
       "gopls-lsp@claude-plugins-official",
       "hai-agentic-dev@harrison-engineering",
       "obsidian@obsidian-skills",
-      "mattpocock-skills@mattpocock"
+      "mattpocock-skills@mattpocock",
+      "next-steps@claude-community",
+      "token-weather@acs-mods"
     ],
     "marketplaces": {
       "harrison-engineering": { "source": { "source": "github", "repo": "harrison-ai/hai-agentic-dev" } },
       "obsidian-skills": { "source": { "source": "github", "repo": "kepano/obsidian-skills" } },
       "qmd": { "source": { "source": "github", "repo": "tobi/qmd" } },
-      "mattpocock": { "source": { "source": "github", "repo": "mattpocock/skills" } }
+      "mattpocock": { "source": { "source": "github", "repo": "mattpocock/skills" } },
+      "claude-community": { "source": { "source": "github", "repo": "anthropics/claude-plugins-community" } },
+      "acs-mods": { "source": { "source": "directory", "path": "~/.claude/mods" } }
     },
     "skills_prune": [
       "code-review",
