@@ -53,6 +53,10 @@ and `resetsAt`). No log files are read.
   would extrapolate one busy hour across days.
 - **Weather glyph:** ☀ ☁ ☂ ⛈ from the worst of context fill, limit use and
   projection.
+- **A drop before the reset is ignored.** Usage only falls when its window resets,
+  so a lower reading before the reset time (the figures can flash 0%) keeps the
+  last good one. Otherwise the next real reading would look like a huge burn and
+  raise a false storm.
 
 The forecasting is pure functions in `hooks/forecast.ts`; the band is in
 `hooks/register.tsx`; tests are in `tests/`.

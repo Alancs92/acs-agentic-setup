@@ -12,12 +12,13 @@ import apply_profile as ap  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 MANIFEST_PATH = os.path.join(HERE, os.pardir, "profiles.json")
 
-# Personal profile as defined in the manifest = lean-18 + mattpocock-skills + 2 mods = 21 plugins.
+# Personal profile as defined in the manifest = lean-18 + mattpocock-skills + 2 mods + swift-lsp = 22 plugins.
 # Base lean-18 was measured 2026-07-25 (audit: -8.7k / -20% startup tax, hash 59a9cd93...);
 # the mattpocock-skills bundle was added to core 2026-07-27 (d8e09889...), and the
-# next-steps and token-weather mods on 2026-11-18.
-GOLDEN_PERSONAL_HASH = "7d3ff9683a8d0573deb6e091759542b7bd9fff6a2191fa2345091a1a18989f86"
-PERSONAL_PLUGIN_COUNT = 21
+# next-steps and token-weather mods on 2026-11-18, and swift-lsp to the personal overlay
+# the same day.
+GOLDEN_PERSONAL_HASH = "37ac497228a83326e0d16b10755cada33132825446829a26d3530a898fe4866e"
+PERSONAL_PLUGIN_COUNT = 22
 
 
 def load_manifest():

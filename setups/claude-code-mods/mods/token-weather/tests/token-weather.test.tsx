@@ -69,10 +69,24 @@ describe('forecast', () => {
   })
 
   test('a window that reset drops its old readings', async () => {
-    const reset = iso(T0 + 4 * HOUR)
-    let w = record(null, { context: { window: 1 }, rateLimits: [{ kind: 'five_hour', percentUsed: 80, resetsAt: reset }] }, T0)
-    w = record(w, { context: { window: 1 }, rateLimits: [{ kind: 'five_hour', percentUsed: 2, resetsAt: reset }] }, T0 + 10 * MIN)
-    expect(w.samples).toEqual([{ kind: 'five_hour', t: T0 + 10 * MIN, p: 2 }])
+    let w = record(null, { context: { window: 1 }, rateLimits: [{ kind: 'five_hour', percentUsed: 80, resetsAt: iso(T0 + HOUR) }] }, T0)
+    const after = T0 + HOUR + 5 * MIN
+    w = record(w, { context: { window: 1 }, rateLimits: [{ kind: 'five_hour', percentUsed: 2, resetsAt: iso(T0 + 6 * HOUR) }] }, after)
+    expect(w.limits[0]?.percentUsed).toBe(2)
+    expect(w.samples).toEqual([{ kind: 'five_hour', t: after, p: 2 }])
+  })
+
+  test('a dip before the reset is held, so it neither shows nor skews the burn', async () => {
+    const reset = iso(T0 + 2 * HOUR)
+    const five = (percentUsed: number) => ({ context: { window: 1 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt: reset }] })
+    let w = record(null, five(36), T0)
+    w = record(w, five(0), T0 + 5 * MIN)
+    expect(w.limits[0]?.percentUsed).toBe(36)
+
+    w = record(w, five(38), T0 + 10 * MIN)
+    const l = limitOutlook(w.limits[0]!, w.samples, T0 + 10 * MIN)
+    expect(l.ratePerHour).toBe(12)
+    expect(l.outInMs).toBeUndefined()
   })
 })
 

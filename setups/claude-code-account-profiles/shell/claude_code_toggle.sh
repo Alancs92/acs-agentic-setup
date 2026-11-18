@@ -10,7 +10,7 @@ CLAUDE_DEFAULT_FILE="$CLAUDE_ACCOUNT_STORE/.default"
 
 # Space-separated list of account names that default to telemetry ON.
 # Anything not in this list defaults to telemetry OFF when switched to.
-CLAUDE_OTEL_ORG_ACCOUNTS="${CLAUDE_OTEL_ORG_ACCOUNTS:-harrison}"
+CLAUDE_OTEL_ORG_ACCOUNTS="${CLAUDE_OTEL_ORG_ACCOUNTS:-harrison hai-enterprise}"
 
 # ─── Name validation ─────────────────────────────────────────────────────────
 
@@ -31,10 +31,11 @@ __claude_acs_validate_name() {
 # ─── Telemetry (OpenTelemetry) helpers ──────────────────────────────────────
 
 _claude_otel_is_org_account() {
-  local name="$1" org
-  for org in $CLAUDE_OTEL_ORG_ACCOUNTS; do
-    [ "$name" = "$org" ] && return 0
-  done
+  # case, not `for org in $LIST`: zsh does not word-split $LIST, so a list of two
+  # names would never match either of them.
+  case " $CLAUDE_OTEL_ORG_ACCOUNTS " in
+    *" $1 "*) return 0 ;;
+  esac
   return 1
 }
 
@@ -165,6 +166,9 @@ claude-acs() {
     regroup|rg)
       __claude_acs_regroup "$@"
       ;;
+    discord|dc)
+      __claude_acs_discord "$@"
+      ;;
     help|--help|-h)
       __claude_acs_help "$@"
       ;;
@@ -208,6 +212,11 @@ __claude_acs_help() {
 │                             from $HOME; account from                 │
 │                             $CLAUDE_ACS_REGROUP_ACCOUNT, default     │
 │                             harrison). Args go to /regroup.          │
+│    discord, dc [args]       Start Claude with the Discord channel.   │
+│                             Token from 1Password; .env only exists   │
+│                             while running (account from              │
+│                             $CLAUDE_ACS_DISCORD_ACCOUNT, default     │
+│                             personal). Args go to claude.            │
 │    help,   -h               Show this help                           │
 │                                                                      │
 │  EXAMPLES                                                            │
@@ -258,6 +267,54 @@ __claude_acs_regroup() {
     cd "$HOME" || exit 1
     exec "$bin" --model sonnet --session-id "$sid" "/regroup $*"
   )
+}
+
+# Launch Claude Code with the Discord channel plugin.
+# Runs in a subshell so CLAUDE_CONFIG_DIR never leaks into the caller.
+# The plugin only reads DISCORD_BOT_TOKEN from its env or .env. An exported token
+# would reach every Bash command Claude runs, so it goes in .env for the session.
+# The 1Password account and item live in $CLAUDE_ACCOUNT_STORE/.discord-op (untracked),
+# which sets CLAUDE_ACS_DISCORD_OP_ACCOUNT and CLAUDE_ACS_DISCORD_OP_REF.
+# Overrides (for tests): CLAUDE_ACS_DISCORD_ACCOUNT (default personal),
+# CLAUDE_ACS_DISCORD_DIR (default ~/.claude/channels/discord), CLAUDE_ACS_CLAUDE_BIN.
+__claude_acs_discord() {
+  local acct="${CLAUDE_ACS_DISCORD_ACCOUNT:-personal}"
+  local dir="${CLAUDE_ACS_DISCORD_DIR:-$HOME/.claude/channels/discord}"
+  local bin="${CLAUDE_ACS_CLAUDE_BIN:-$HOME/.local/bin/claude}"
+  local conf="$CLAUDE_ACCOUNT_STORE/.discord-op"
+  __claude_acs_validate_name "$acct" || return 1
+  if [ ! -d "$CLAUDE_ACCOUNT_STORE/$acct" ]; then
+    echo "❌ Account '$acct' not found in $CLAUDE_ACCOUNT_STORE"
+    return 1
+  fi
+  if [ ! -f "$conf" ]; then
+    echo "❌ Missing $conf (sets CLAUDE_ACS_DISCORD_OP_ACCOUNT and CLAUDE_ACS_DISCORD_OP_REF)"
+    return 1
+  fi
+  local token
+  # Sourced inside the command substitution, so the settings never reach this shell.
+  token="$(. "$conf" && op read --account "$CLAUDE_ACS_DISCORD_OP_ACCOUNT" "$CLAUDE_ACS_DISCORD_OP_REF")" || return 1
+  mkdir -p "$dir" || return 1
+  # One subshell owns the .env from creation to removal, and its EXIT trap removes
+  # the file on every way out. That includes the terminal closing mid-session: the
+  # interactive shell dies then, so nothing after this block would run. zsh runs
+  # EXIT on a hangup by itself; TERM needs the explicit exit. Ctrl-C cancels a turn
+  # in Claude, so on INT this shell just keeps waiting: interrupted, it would exit
+  # without running EXIT. (A handler, not '' : an ignored INT would pass to Claude.)
+  (
+    trap 'rm -f "$dir/.env"' EXIT
+    trap 'exit 143' TERM
+    trap ':' INT
+    # Remove first: umask only applies to new files, so an old 644 .env would stay 644.
+    rm -f "$dir/.env"
+    (umask 077; printf 'DISCORD_BOT_TOKEN=%s\n' "$token" > "$dir/.env") || exit 1
+    unset token
+    export CLAUDE_CONFIG_DIR="$CLAUDE_ACCOUNT_STORE/$acct"
+    "$bin" --channels plugin:discord@claude-plugins-official "$@"
+  )
+  local rc=$?
+  unset token
+  return $rc
 }
 
 # Resolve a setup script inside the acs-agentic-setup repo.
