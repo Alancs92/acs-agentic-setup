@@ -16,8 +16,8 @@ MANIFEST_PATH = os.path.join(HERE, os.pardir, "profiles.json")
 # Base lean-18 was measured 2026-07-25 (audit: -8.7k / -20% startup tax, hash 59a9cd93...);
 # the mattpocock-skills bundle was added to core 2026-07-27 (d8e09889...), and the
 # next-steps and token-weather mods on 2026-11-18, and swift-lsp to the personal overlay
-# the same day.
-GOLDEN_PERSONAL_HASH = "37ac497228a83326e0d16b10755cada33132825446829a26d3530a898fe4866e"
+# the same day; next-steps-plus replaced next-steps in core later that day (count unchanged).
+GOLDEN_PERSONAL_HASH = "b05c1599b48473622f6ee6487e0d396db3bd2695a67ecbc9d42b4f136ae4ede5"
 PERSONAL_PLUGIN_COUNT = 22
 
 
