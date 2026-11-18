@@ -45,7 +45,9 @@ attribution can skip regroup sessions. Test overrides: `CLAUDE_ACS_REGROUP_DIR`,
 `claude-acs discord` (`dc`) starts Claude on the personal account with the
 Discord channel plugin. It reads the bot token from 1Password into the plugin's
 `.env` (mode 600) for the session and deletes it on exit; the token is never
-exported. The 1Password account and item are not in this repo: the function
+exported. A stale `.env` is removed before writing, since `umask` only applies to
+new files. The file is also removed if the terminal closes or the shell is sent
+SIGTERM mid-session, and Ctrl-C inside Claude doesn't skip the clean-up. The 1Password account and item are not in this repo: the function
 sources them from `$CLAUDE_ACCOUNT_STORE/.discord-op`, a private file that sets
 `CLAUDE_ACS_DISCORD_OP_ACCOUNT` and `CLAUDE_ACS_DISCORD_OP_REF`. Test overrides:
 `CLAUDE_ACS_DISCORD_ACCOUNT`, `CLAUDE_ACS_DISCORD_DIR`, `CLAUDE_ACS_CLAUDE_BIN`.

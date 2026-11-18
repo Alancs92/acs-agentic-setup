@@ -198,15 +198,19 @@ class RegroupLaunch(unittest.TestCase):
         self.assertIn("regroup", out)
 
 
-def zsh_isolated(script, tmp, **env_extra):
-    """Run `script` after sourcing the tracked toggle in zsh with HOME=tmp."""
+def zsh_isolated(script, tmp, new_session=False, **env_extra):
+    """Run `script` after sourcing the tracked toggle in zsh with HOME=tmp.
+
+    new_session puts zsh in its own process group, so a test can hang up the
+    whole job (as closing the terminal does) without signalling the runner.
+    """
     env = dict(os.environ, HOME=tmp, **env_extra)
     for var in ("CLAUDE_CONFIG_DIR", "CLAUDE_OTEL_ORG_ACCOUNTS", "OTEL_SDK_DISABLED",
                 "DISABLE_TELEMETRY", "DISCORD_BOT_TOKEN"):
         if var not in env_extra:
             env.pop(var, None)
     return subprocess.run(["zsh", "-c", "source %s >/dev/null 2>&1; %s" % (TRACKED, script)],
-                          capture_output=True, text=True, env=env)
+                          capture_output=True, text=True, env=env, start_new_session=new_session)
 
 
 class OrgAccountTelemetry(unittest.TestCase):
@@ -258,7 +262,13 @@ class DiscordLaunch(unittest.TestCase):
     OP_ACCOUNT = "ACCT-TEST"
     OP_REF = "op://Vault/Item Name/token field"  # spaces: must stay one argument
 
-    def _run(self, *args, make_account=True, make_conf=True, op_fails=False, stub_rc=0):
+    def _run(self, *args, make_account=True, make_conf=True, op_fails=False, stub_rc=0,
+             stale_env=False, kill_with=None, ctrl_c=False):
+        """stale_env leaves a world-readable .env behind first. hangup does what
+        closing the terminal does mid-session: the interactive shell dies (so
+        nothing after the launch runs) and the job gets SIGHUP. kill_with="TERM"
+        does the same with SIGTERM. ctrl_c sends SIGINT mid-session to Claude
+        (which handles it, as it does to cancel a turn) and to the shell around it."""
         tmp = tempfile.mkdtemp()
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
         store = os.path.join(tmp, "store")
@@ -278,24 +288,39 @@ class DiscordLaunch(unittest.TestCase):
                      % (oplog, "exit 1" if op_fails else "echo %s" % self.TOKEN))
         stub = os.path.join(tmp, "claude-stub")
         envfile = os.path.join(tmp, "discord", ".env")
+        if stale_env:
+            os.makedirs(os.path.dirname(envfile))
+            with open(envfile, "w") as fh:
+                fh.write("STALE=1\n")
+            os.chmod(envfile, 0o644)
+        if kill_with:
+            ending = 'kill -KILL "$OUTER"; kill -%s "$PPID"; kill -%s $$\nsleep 5\n' % (kill_with, kill_with)
+        elif ctrl_c:
+            ending = ("trap 'echo STUB_GOT_INT' INT\nkill -INT \"$PPID\" $$\nsleep 1\n"
+                      "[ -e %s ] && echo ENV_DURING=present || echo ENV_DURING=missing\nexit 0\n" % envfile)
+        else:
+            ending = "exit %d\n" % stub_rc
         with open(stub, "w") as fh:
             fh.write('#!/bin/sh\necho "CFG=$CLAUDE_CONFIG_DIR"\n'
                      'for a in "$@"; do echo "ARG=$a"; done\n'
                      'echo "ENV=$(cat %s)"\n'
                      'echo "MODE=$(stat -f %%Lp %s 2>/dev/null || stat -c %%a %s)"\n'
                      'echo "CHILD_TOKEN=${DISCORD_BOT_TOKEN:-unset}"\n'
-                     'exit %d\n' % (envfile, envfile, envfile, stub_rc))
+                     'echo "UMASK=$(umask)"\n'
+                     'echo "CHILD_INT_IGNORED=$(python3 -I -c \'import signal; print(signal.getsignal(signal.SIGINT) == signal.SIG_IGN)\')"\n'
+                     % (envfile, envfile, envfile) + ending)
         os.chmod(op, 0o755)
         os.chmod(stub, 0o755)
-        cmd = ("CLAUDE_ACCOUNT_STORE=%s; claude-acs %s; echo RC=$?; "
+        cmd = ("export OUTER=$$; umask 022; CLAUDE_ACCOUNT_STORE=%s; claude-acs %s; echo RC=$?; "
                "echo AFTER_CFG=${CLAUDE_CONFIG_DIR:-unset}; "
                "echo AFTER_OP=${CLAUDE_ACS_DISCORD_OP_ACCOUNT:-unset}; "
                "[ -e %s ] && echo ENV_LEFT || echo ENV_GONE"
                % (store, " ".join(args) or "discord", envfile))
-        res = zsh_isolated(cmd, tmp, CLAUDE_ACS_CLAUDE_BIN=stub,
+        res = zsh_isolated(cmd, tmp, new_session=bool(kill_with), CLAUDE_ACS_CLAUDE_BIN=stub,
                            CLAUDE_ACS_DISCORD_DIR=os.path.dirname(envfile),
                            PATH=bindir + os.pathsep + os.environ["PATH"])
         oplines = read(oplog).splitlines() if os.path.exists(oplog) else None
+        self.env_left = os.path.exists(envfile)
         return res, store, oplines
 
     def test_launches_with_the_channel_flag_config_dir_and_args(self):
@@ -307,6 +332,8 @@ class DiscordLaunch(unittest.TestCase):
                                               "ARG=--resume"])
         self.assertIn("AFTER_CFG=unset", lines)  # subshell-scoped
         self.assertIn("RC=0", lines)
+        self.assertIn("UMASK=022", [l.replace("UMASK=0", "UMASK=") for l in lines])  # .env's 077 stays on .env
+        self.assertIn("CHILD_INT_IGNORED=False", lines)  # Ctrl-C still reaches Claude
 
     def test_token_lives_in_a_private_env_file_only_while_running(self):
         res, _, oplines = self._run()
@@ -323,6 +350,35 @@ class DiscordLaunch(unittest.TestCase):
         res, _, _ = self._run(stub_rc=3)
         self.assertIn("RC=3", res.stdout.splitlines())
         self.assertIn("ENV_GONE", res.stdout.splitlines())
+
+    def test_a_stale_env_file_is_replaced_not_reused(self):
+        """umask only applies to new files: writing into an old 644 .env keeps 644."""
+        res, _, _ = self._run(stale_env=True)
+        lines = res.stdout.splitlines()
+        self.assertIn("MODE=600", lines)
+        self.assertIn("ENV=DISCORD_BOT_TOKEN=%s" % self.TOKEN, lines)
+        self.assertFalse(self.env_left)
+
+    def test_closing_the_terminal_mid_session_still_removes_the_token(self):
+        res, _, _ = self._run(kill_with="HUP")
+        self.assertIn("ENV=DISCORD_BOT_TOKEN=%s" % self.TOKEN, res.stdout.splitlines())
+        self.assertFalse(self.env_left, "the .env with the token survived a hangup")
+
+    def test_ctrl_c_in_claude_keeps_the_session_and_still_cleans_up(self):
+        """Ctrl-C cancels a turn in Claude. The shell around it must keep waiting:
+        a zsh subshell interrupted while waiting exits without its EXIT trap."""
+        res, _, _ = self._run(ctrl_c=True)
+        lines = res.stdout.splitlines()
+        self.assertIn("STUB_GOT_INT", lines)
+        self.assertIn("ENV_DURING=present", lines)
+        self.assertIn("RC=0", lines)
+        self.assertIn("ENV_GONE", lines)
+        self.assertFalse(self.env_left)
+
+    def test_a_terminate_signal_still_removes_the_token(self):
+        res, _, _ = self._run(kill_with="TERM")
+        self.assertIn("ENV=DISCORD_BOT_TOKEN=%s" % self.TOKEN, res.stdout.splitlines())
+        self.assertFalse(self.env_left, "the .env with the token survived SIGTERM")
 
     def test_a_failed_token_read_stops_before_launching(self):
         res, _, _ = self._run(op_fails=True)

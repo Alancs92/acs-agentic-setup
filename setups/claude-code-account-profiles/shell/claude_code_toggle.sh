@@ -294,14 +294,26 @@ __claude_acs_discord() {
   local token
   # Sourced inside the command substitution, so the settings never reach this shell.
   token="$(. "$conf" && op read --account "$CLAUDE_ACS_DISCORD_OP_ACCOUNT" "$CLAUDE_ACS_DISCORD_OP_REF")" || return 1
-  mkdir -p "$dir" && (umask 077; printf 'DISCORD_BOT_TOKEN=%s\n' "$token" > "$dir/.env") || return 1
-  unset token
+  mkdir -p "$dir" || return 1
+  # One subshell owns the .env from creation to removal, and its EXIT trap removes
+  # the file on every way out. That includes the terminal closing mid-session: the
+  # interactive shell dies then, so nothing after this block would run. zsh runs
+  # EXIT on a hangup by itself; TERM needs the explicit exit. Ctrl-C cancels a turn
+  # in Claude, so on INT this shell just keeps waiting: interrupted, it would exit
+  # without running EXIT. (A handler, not '' : an ignored INT would pass to Claude.)
   (
+    trap 'rm -f "$dir/.env"' EXIT
+    trap 'exit 143' TERM
+    trap ':' INT
+    # Remove first: umask only applies to new files, so an old 644 .env would stay 644.
+    rm -f "$dir/.env"
+    (umask 077; printf 'DISCORD_BOT_TOKEN=%s\n' "$token" > "$dir/.env") || exit 1
+    unset token
     export CLAUDE_CONFIG_DIR="$CLAUDE_ACCOUNT_STORE/$acct"
     "$bin" --channels plugin:discord@claude-plugins-official "$@"
   )
   local rc=$?
-  rm -f "$dir/.env"
+  unset token
   return $rc
 }
 
