@@ -66,6 +66,22 @@ def config_hash(effective):
     return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
 
 
+def expand_marketplaces(marketplaces, home):
+    """A copy with each `directory` source's leading `~` replaced by `home`.
+
+    The manifest keeps `~` so the repo carries no machine-specific path;
+    settings.json gets the absolute path Claude Code reads.
+    """
+    out = {}
+    for name, entry in marketplaces.items():
+        source = entry.get("source", {})
+        path = source.get("path")
+        if source.get("source") == "directory" and isinstance(path, str) and (path == "~" or path.startswith("~/")):
+            entry = {**entry, "source": {**source, "path": home + path[1:]}}
+        out[name] = entry
+    return out
+
+
 def resolve_account(manifest, account):
     """Resolve everything needed to apply one account. Raises KeyError/ValueError."""
     core = manifest["core"]
@@ -122,8 +138,9 @@ def apply_account(manifest, account, store, dry_run, assume_yes, prune_skills=Fa
     removed = [p for p in old_plugins if p not in new_plugins]
 
     # Marketplace union (never removes an existing marketplace).
+    marketplaces = expand_marketplaces(resolved["marketplaces"], os.path.expanduser("~"))
     existing_mkt = settings.get("extraKnownMarketplaces", {})
-    mkt_added = [k for k in resolved["marketplaces"] if k not in existing_mkt]
+    mkt_added = [k for k in marketplaces if k not in existing_mkt]
 
     # Skills that actually exist in this account's skills dir.
     skills_dir = os.path.join(acct_dir, "skills")
@@ -184,7 +201,7 @@ def apply_account(manifest, account, store, dry_run, assume_yes, prune_skills=Fa
 
     settings["enabledPlugins"] = plugins_object(new_plugins)
     merged_mkt = dict(existing_mkt)
-    merged_mkt.update(resolved["marketplaces"])
+    merged_mkt.update(marketplaces)
     settings["extraKnownMarketplaces"] = merged_mkt
 
     tmp = f"{settings_path}.tmp-{os.getpid()}"

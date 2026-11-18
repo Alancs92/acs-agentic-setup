@@ -4,6 +4,11 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-11-18
+
+- **Claude Code mods on every account** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). `token-weather` draws one line above the prompt: context fill with a trend sparkline, tokens per turn and turns left, and the 5-hour and weekly usage limits with where each lands at its reset (red when the pace hits the limit first). It reads the `session.measure` event, so no log parsing. It lives in a local marketplace, `acs-mods` at `~/.claude/mods`, with a tracked copy in the setup folder. `next-steps` comes from Anthropic's community marketplace. Both are installed on harrison, personal, personal2 and hai-enterprise.
+- **The profile manifest keeps the mods** ([`setups/claude-code-account-profiles/`](setups/claude-code-account-profiles/README.md)). `core` now lists `token-weather@acs-mods` and `next-steps@claude-community` and both marketplaces, so `apply-profile` no longer drops them. A `directory` marketplace path may start with `~`; `apply_profile.py` expands it when writing `settings.json`, so the repo carries no machine path. Golden personal hash is now `7d3ff968…` (21 plugins).
+
 ## 2026-11-13
 
 - **claude-router picks the Claude account per launch** ([`setups/claude-account-router/`](setups/claude-account-router/README.md)). A `claude` wrapper first on PATH: an account someone chose (manual `claude-acs sw`, herdr session, script) wins, then a per-repo pin, then first-match rules on folder, remote, repo, branch, host, app (`orca`, `herdr`, `cmux`, `terminal`), Orca project or workspace name, or any env var; conditions on a line combine, so one repo can take different accounts in different apps. `claude-route status` shows each account's login and expiry; `claude-route login <account>` signs one in again. It applies the account through `claude-acs switch`, so the per-account telemetry env comes along, and refuses to start rather than fall back to another account. With Orca on "System default", terminals, `orca agent launch`, the chat view and restored panes all route through it. Tests: `scripts/test_claude_router.py` (fake HOME) and `scripts/e2e_orca.sh` (headless Orca in a closed sandbox).
