@@ -18,7 +18,7 @@ This setup holds the mods I run on every account:
 | Mod | From | What it does |
 |---|---|---|
 | `token-weather` | `acs-mods` (mine, this folder) | One line above the prompt: context fill with a trend sparkline, tokens added per turn and turns left; the 5-hour and weekly usage limits with where each lands at its reset (red when the limit is hit first). |
-| `next-steps-plus` | `acs-mods` (mine, adapted from the community `next-steps`) | Suggests up to three next prompts when a turn ends, informed by the repo's git state, the branch's PR and checks, and my notes; hover or focus one to see its full prompt; 1, 2 or 3 drafts it, 0 dismisses. |
+| `next-steps-plus` | `acs-mods` (mine, adapted from the community `next-steps`) | Suggests up to three next prompts when a turn ends, informed by the repo's git state, the branch's PR and checks, and my notes; hover or focus one to see its full prompt; 1, 2 or 3 drafts it, 0 dismisses. It never puts ghost text in the prompt box. |
 
 ## Why
 

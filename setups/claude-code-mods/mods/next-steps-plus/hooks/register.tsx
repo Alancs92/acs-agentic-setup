@@ -4,7 +4,8 @@
 // also handed fresh context: the repo's git state, the branch's PR and checks, and
 // the user's own notes files and notes folders (by title). The band shows each
 // suggestion's label; hovering or focusing one reveals its full prompt. 1/2/3 put
-// it in the prompt box as a draft ($.prompt.fill); nothing is submitted.
+// it in the prompt box as a draft ($.prompt.fill); nothing is submitted, and
+// nothing is proposed as ghost text in the prompt box either.
 
 import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
@@ -243,8 +244,10 @@ export const register: Register = (on, options) => {
       }
       // A newer turn started (or another completed) while we waited: drop ours.
       if (view.kind !== 'loading' || view.turnId !== turnId) return
+      // The band only. No $.prompt.suggest ghost text: what the fork read (PR
+      // titles, check names, files) can steer its reply, so a suggestion reaches
+      // the prompt box only as a draft, after the person presses 1/2/3.
       show($, items.length === 0 ? { kind: 'hidden' } : { kind: 'offer', items })
-      if (items[0] !== undefined) void $.prompt.suggest({ text: items[0].prompt }).catch(() => undefined)
     })()
     return result
   })

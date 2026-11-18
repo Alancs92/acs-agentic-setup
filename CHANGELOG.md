@@ -4,6 +4,10 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-11-19
+
+- **`next-steps-plus` 0.1.1 drops the ghost-text suggestion** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). It no longer puts its first suggestion in the empty prompt box as dim text (`$.prompt.suggest`). What the suggester reads (PR titles, check names, files) can steer what it writes, so a suggestion now reaches the prompt box only as an editable draft after a 1, 2 or 3 press. The band, the hover and focus preview, and the context are unchanged. A new test fails if the mod ever calls `prompt.suggest`; 20 tests.
+
 ## 2026-11-18
 
 - **`next-steps-plus` replaces `next-steps`** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). A mod of my own, adapted from the community `next-steps` (MIT). Its suggester also gets the repo's git state, the branch's PR and checks (`gh`, cached two minutes), and the notes files and notes folders I configure, with paths kept in local settings rather than here. Hovering or focusing a suggestion shows its full prompt. The manifest's `core` swaps `next-steps@claude-community` for `next-steps-plus@acs-mods`; the golden personal hash is now `b05c1599…` (22 plugins). 19 tests.

@@ -48,7 +48,7 @@ type World = {
 
 /** The engine beneath the mod: git, gh, files, the fork and the prompt box. */
 function engine(on: On, w: World = {}) {
-  const seen = { fork: '', argv: [] as string[][], filled: '' }
+  const seen = { fork: '', argv: [] as string[][], filled: '', suggested: [] as string[] }
   mock.clock(on, { now: T0 })
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.reason === 'refusal' ? '' : e.answer }))
@@ -97,7 +97,10 @@ function engine(on: On, w: World = {}) {
       },
     }
   })
-  on('prompt.suggest', () => ({ isShown: true }))
+  on('prompt.suggest', (_, e) => {
+    seen.suggested.push(e.text)
+    return { isShown: true }
+  })
   on('ui.focus', () => ({}))
   on('prompt.fill', (_, e) => {
     seen.filled = e.text
@@ -248,6 +251,26 @@ describe('band', () => {
     await ui.press({ key: 'pick:0' })
     expect(seen.filled).toBe('Fix the failing lint check on PR #7, then push.')
     expect(await ui.find({ text: /^next:$/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  // Model text can be steered by what the fork reads (PR titles, check names,
+  // files). So it never goes to the prompt box as ghost text; it reaches the box
+  // only as a draft, after a 1/2/3 press.
+  test('never proposes ghost text: only a press puts a suggestion in the box', async ($, on) => {
+    const seen = engine(on)
+    const ui = await $.ui.mount(BAND)
+    await endTurn($)
+    await offer(ui)
+    await $.ui.focus({ component: 'AbovePrompt', requestId: 'band', element: 'pick:0', origin: 'person' } as never)
+    expect(seen.suggested).toEqual([])
+    expect(seen.filled).toBe('')
+
+    await ui.press({ key: 'pick:1' })
+    expect(seen.filled).toBe('/code-commit the change to a.ts')
+    await endTurn($)
+    await offer(ui)
+    expect(seen.suggested).toEqual([])
     await ui.unmount()
   })
 
