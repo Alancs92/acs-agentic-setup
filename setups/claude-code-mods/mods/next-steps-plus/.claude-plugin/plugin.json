@@ -1,6 +1,6 @@
 {
   "name": "next-steps-plus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "After each turn, suggests up to three next prompts above the input, informed by the repo's git state, its pull request and checks, and your own notes. Hover or focus a suggestion to see its full prompt; 1, 2 or 3 puts it in the prompt box as an editable draft, 0 dismisses.",
   "license": "MIT",
   "keywords": ["suggestions", "next-steps", "prompt", "context", "ui"],

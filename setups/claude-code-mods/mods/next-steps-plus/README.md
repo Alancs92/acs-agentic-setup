@@ -15,7 +15,10 @@ in the band above the input. It is next-steps with three additions:
 - **Longer prompts:** up to 1000 characters.
 
 1, 2 or 3 put a suggestion in the prompt box as an editable draft; 0 dismisses.
-Nothing is ever sent for you.
+Nothing is ever sent for you. Unlike next-steps, it never puts a suggestion in
+the empty prompt box as dim ghost text: what the suggester reads (PR titles,
+check names, files) can steer what it writes, so a suggestion reaches the box
+only when you press its number.
 
 ## Options
 
