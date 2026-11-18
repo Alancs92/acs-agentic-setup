@@ -32,15 +32,26 @@ export function record(prev: Weather | null, m: Measure, now: number): Weather {
     }
   }
 
-  const limits = m.rateLimits.length > 0 ? m.rateLimits.map(l => ({ ...l })) : (prev?.limits ?? [])
-
+  const prevLimits = prev?.limits ?? []
   let samples = (prev?.samples ?? []).filter(s => now - s.t <= BURN_WINDOW)
+  if (m.rateLimits.length === 0) {
+    return { window: m.context.window, ctx: nextCtx, limits: prevLimits, samples }
+  }
+
+  const limits: Limit[] = []
   for (const l of m.rateLimits) {
-    const mine = samples.filter(s => s.kind === l.kind)
-    const last = mine[mine.length - 1]
-    if (last && l.percentUsed + 0.5 < last.p) {
+    const before = prevLimits.find(p => p.kind === l.kind)
+    if (before && l.percentUsed < before.percentUsed) {
+      // Usage only falls when its window resets. A drop before the reset time is a
+      // passing bad reading (it can flash 0%), so the last good one stands.
+      const resetAt = before.resetsAt ? Date.parse(before.resetsAt) : NaN
+      if (now < resetAt) {
+        limits.push({ ...before })
+        continue
+      }
       samples = samples.filter(s => s.kind !== l.kind) // the window reset
     }
+    limits.push({ ...l })
     samples.push({ kind: l.kind, t: now, p: l.percentUsed })
   }
 
