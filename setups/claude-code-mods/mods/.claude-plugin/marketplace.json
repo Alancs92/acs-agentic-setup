@@ -8,7 +8,7 @@
     {
       "name": "token-weather",
       "source": "./token-weather",
-      "description": "A one-line forecast above the prompt: context fill and its trend, plus the 5-hour and weekly usage limits with where each is heading by its reset."
+      "description": "A one-line forecast above the prompt: context fill and its trend, the 5-hour and weekly usage limits with where each is heading by its reset, and, at full width, how many sessions of the account are live."
     },
     {
       "name": "next-steps-plus",

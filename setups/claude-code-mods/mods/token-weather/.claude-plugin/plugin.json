@@ -1,6 +1,6 @@
 {
   "name": "token-weather",
-  "version": "0.1.1",
-  "description": "A one-line forecast above the prompt: context fill and its trend, plus the 5-hour and weekly usage limits with where each is heading by its reset.",
+  "version": "0.2.0",
+  "description": "A one-line forecast above the prompt: context fill and its trend, the 5-hour and weekly usage limits with where each is heading by its reset, and, at full width, how many sessions of the account are live.",
   "types": "./types/index.d.ts"
 }

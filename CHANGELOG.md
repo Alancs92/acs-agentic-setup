@@ -6,6 +6,7 @@ repo. This is the timeline view — for the structural map, see
 
 ## 2026-11-19
 
+- **`token-weather` 0.2.0 counts live sessions** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). At full width, and only where the line has room, the band ends with how many sessions of the same account are live. Each session rewrites one small file of its own every minute under its account's config folder, so there is no server, no lock and no model request. A session removes its file when it ends, including on `/clear`, and files over an hour old are pruned. 10 new tests; six deliberate breakages of the new code were each caught.
 - **`next-steps-plus` 0.1.1 drops the ghost-text suggestion** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). It no longer puts its first suggestion in the empty prompt box as dim text (`$.prompt.suggest`). What the suggester reads (PR titles, check names, files) can steer what it writes, so a suggestion now reaches the prompt box only as an editable draft after a 1, 2 or 3 press. The band, the hover and focus preview, and the context are unchanged. A new test fails if the mod ever calls `prompt.suggest`; 20 tests.
 
 ## 2026-11-18
