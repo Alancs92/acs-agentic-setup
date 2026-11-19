@@ -18,6 +18,6 @@ export type Weather = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'token-weather': { weather: Shaped<Weather | null>; tick: number }
+    'token-weather': { weather: Shaped<Weather | null>; tick: number; live: number }
   }
 }

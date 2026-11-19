@@ -17,7 +17,7 @@ This setup holds the mods I run on every account:
 
 | Mod | From | What it does |
 |---|---|---|
-| `token-weather` | `acs-mods` (mine, this folder) | One line above the prompt: context fill with a trend sparkline, tokens added per turn and turns left; the 5-hour and weekly usage limits with where each lands at its reset (red when the limit is hit first). |
+| `token-weather` | `acs-mods` (mine, this folder) | One line above the prompt: context fill with a trend sparkline, tokens added per turn and turns left; the 5-hour and weekly usage limits with where each lands at its reset (red when the limit is hit first); at full width, how many sessions of the account are live. |
 | `next-steps-plus` | `acs-mods` (mine, adapted from the community `next-steps`) | Suggests up to three next prompts when a turn ends, informed by the repo's git state, the branch's PR and checks, and my notes; hover or focus one to see its full prompt; 1, 2 or 3 drafts it, 0 dismisses. It never puts ghost text in the prompt box. |
 
 ## Why
@@ -55,6 +55,13 @@ and `resetsAt`). No log files are read.
   would extrapolate one busy hour across days.
 - **Weather glyph:** ☀ ☁ ☂ ⛈ from the worst of context fill, limit use and
   projection.
+- **Live sessions:** each session rewrites one small file of its own every
+  minute, in `token-weather/live/` under its account's config folder
+  (`CLAUDE_CONFIG_DIR`, else `~/.claude`), so accounts never mix. The count is
+  the files written in the last 150 seconds. One writer per file, so no locks
+  and no server. A session removes its file when it ends; files over an hour
+  old (a crash) are pruned. Only shown when the full line leaves room. Local
+  files only: no model request, so no tokens.
 - **A drop before the reset is ignored.** Usage only falls when its window resets,
   so a lower reading before the reset time (the figures can flash 0%) keeps the
   last good one. Otherwise the next real reading would look like a huge burn and
