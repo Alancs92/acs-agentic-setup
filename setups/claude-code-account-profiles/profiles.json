@@ -37,6 +37,10 @@
       "skill-creator"
     ]
   },
+  "mirrors": {
+    "_comment": "target -> source. A mirror is the source account under a different login; it has no overlay of its own. Sync: claude-acs mirror (scripts/mirror_account.py).",
+    "terradev": "personal"
+  },
   "accounts": {
     "personal": {
       "plugins_add": [
