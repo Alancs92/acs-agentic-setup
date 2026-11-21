@@ -62,6 +62,8 @@ still works, and new panes go back to the routed account. The block has to come 
 `source ~/claude_code_toggle.sh` in `~/.zshrc`, which it does when `install.sh` appends it. Without
 `claude-acs` defined, routing does nothing.
 
+> **Adding a new account?** Follow [`onboard-a-claude-account.md`](../../docs/handbook/onboard-a-claude-account.md); it covers this setup's part in order with the others.
+
 ## Components
 
 - **herdr** (Homebrew, 0.9.x): sessions, panes, agent detection, the sidebar.

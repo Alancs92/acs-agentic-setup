@@ -91,6 +91,8 @@ never match. If Orca can't be asked when one of them decides the launch, the rou
 start `claude` rather than guess (`CLAUDE_ROUTER_DISABLE=1 claude` to bypass once). Put rules
 that don't need Orca first: a launch that matches an earlier line never asks Orca.
 
+> **Adding a new account?** Follow [`onboard-a-claude-account.md`](../../docs/handbook/onboard-a-claude-account.md); it covers this setup's part in order with the others.
+
 ## Logins
 
 The router only chooses which account folder `claude` runs on; each account keeps its own

@@ -132,6 +132,8 @@ then `claude-acs sw <name>` → `claude` → `/login`. The account dir needs no
 manual setup. Telemetry follows `CLAUDE_OTEL_ORG_ACCOUNTS` in the toggle
 (not listed → off).
 
+> **Adding a new account?** Follow [`onboard-a-claude-account.md`](../../docs/handbook/onboard-a-claude-account.md); it covers this setup's part in order with the others.
+
 ## Config
 
 - Manifest: [`profiles.json`](profiles.json). `core.plugins` is pinned to the
