@@ -4,6 +4,11 @@ Dated, human-readable log of notable changes to setups documented in this
 repo. This is the timeline view — for the structural map, see
 [`README.md`](README.md). Newest entries first.
 
+## 2026-11-21
+
+- **Runbook for onboarding a Claude account** ([`docs/handbook/onboard-a-claude-account.md`](docs/handbook/onboard-a-claude-account.md)). One page, in order, for adding a personal or work login to plain Claude Code, herdr and Orca: mirror vs standalone, telemetry, herdr hooks, router rules, verification (including a fake Orca CLI to test `project=` rules with Orca closed), offboarding and gotchas. Linked from the herdr, router and profiles READMEs.
+- **`terradev` routes in Orca.** The live router rules gained `terradev project=*-terradev`, so an Orca project named `*-terradev` starts Claude on terradev. herdr already routed `terradev` and `*-terradev` sessions, since the mirror has a `settings.json`. Checked with the fake-Orca test from the runbook.
+
 ## 2026-11-19
 
 - **`token-weather` 0.2.0 counts live sessions** ([`setups/claude-code-mods/`](setups/claude-code-mods/README.md)). At full width, and only where the line has room, the band ends with how many sessions of the same account are live. Each session rewrites one small file of its own every minute under its account's config folder, so there is no server, no lock and no model request. A session removes its file when it ends, including on `/clear`, and files over an hour old are pruned. 10 new tests; six deliberate breakages of the new code were each caught.

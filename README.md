@@ -27,6 +27,7 @@ that directory, one line per entry, and links deeper only where needed.
 | [`setups/`](setups/INDEX.md) | Concrete, reproducible setups — one agent or several, local or cloud — each with what it is, why it exists, and the scripts/config to reproduce it. This is the "history" of what I've actually run. |
 | [`research/`](research/INDEX.md) | Open notes: comparisons, evaluations, experiments, links — things I'm exploring that haven't crystallized into a setup yet. |
 | [`scripts/`](scripts/INDEX.md) | Shared automation not tied to a single setup (bootstrap helpers, common install steps, etc.). Setup-specific scripts live inside that setup's own directory instead. |
+| [`docs/handbook/`](docs/handbook/INDEX.md) | Runbooks that span several setups, e.g. [onboarding a new Claude account](docs/handbook/onboard-a-claude-account.md) into Claude Code, herdr and Orca. |
 | [`templates/`](templates/INDEX.md) | Copy-paste starting points for adding a new agent doc, setup, or research note, so new entries stay structurally consistent. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Dated, human-readable log of notable changes across setups — the append-only timeline view of this repo's history. |
 
