@@ -154,6 +154,9 @@ claude-acs() {
     apply-profile|ap)
       __claude_acs_apply_profile "$@"
       ;;
+    mirror|mr)
+      __claude_acs_mirror "$@"
+      ;;
     stats|usage)
       __claude_acs_stats "$@"
       ;;
@@ -198,6 +201,9 @@ __claude_acs_help() {
 │    status, st               Show full Claude Code environment info   │
 │    telemetry, tel [on|off]  Show/force OpenTelemetry state           │
 │    apply-profile, ap <acct>  Apply lean plugin profile to account    │
+│    mirror, mr [acct] [--check|--dry-run]                             │
+│                             Sync mirror accounts (e.g. terradev)     │
+│                             from their source (profiles.json)        │
 │    stats, usage             Cross-account usage stats + dashboard    │
 │    backup, bk  [sub]        SKILL/CONFIG BACKUP — versioned, to      │
 │                             OneDrive. NOT the same as `save`, which  │
@@ -383,6 +389,21 @@ __claude_acs_apply_profile() {
     return 1
   fi
   python3 "$script" --account "$name" --store "$CLAUDE_ACCOUNT_STORE" "$@"
+}
+
+# Keep mirror accounts (profiles.json "mirrors", e.g. terradev -> personal) in
+# parity with their source: links CLAUDE.md/hooks/agents/memory, copies settings.
+# Thin wrapper — all logic lives in the repo.
+__claude_acs_mirror() {
+  local script
+  script="$(__claude_acs_setup_script claude-code-account-profiles/scripts/mirror_account.py)"
+  if [ -z "$script" ]; then
+    echo "❌ mirror script not found under ${CLAUDE_ACS_REPO:-${CLAUDE_ACS_PROFILES_REPO:-$HOME/repos/acs-agentic-setup}}"
+    echo "   Looked in setups/ and in each worktree's setups/."
+    echo "   Set CLAUDE_ACS_REPO to your acs-agentic-setup checkout or worktree."
+    return 1
+  fi
+  python3 "$script" --store "$CLAUDE_ACCOUNT_STORE" "$@"
 }
 
 # Cross-account usage statistics + HTML dashboard (from the acs-agentic-setup

@@ -88,6 +88,10 @@ def resolve_account(manifest, account):
     if not core.get("plugins"):
         raise ValueError("manifest core.plugins is empty")
     accounts = manifest.get("accounts", {})
+    mirrors = {k: v for k, v in manifest.get("mirrors", {}).items() if not k.startswith("_")}
+    if account in mirrors:
+        raise KeyError(f"account '{account}' mirrors '{mirrors[account]}': run "
+                       f"`claude-acs apply-profile {mirrors[account]}` then `claude-acs mirror {account}`")
     if account not in accounts:
         raise KeyError(f"account '{account}' not in manifest (have: {', '.join(sorted(accounts)) or 'none'})")
     ov = accounts[account]
