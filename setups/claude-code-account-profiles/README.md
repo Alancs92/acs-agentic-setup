@@ -95,6 +95,43 @@ Point the wrapper at a non-default checkout with
 Restart Claude Code after applying — plugins reload on launch. Verify with
 `/context` (see the audit's baseline protocol).
 
+## Mirror accounts
+
+A **mirror** is an existing account under a different Claude login, kept in
+parity with it instead of tuned on its own. Declared in `profiles.json`:
+
+```json
+"mirrors": { "terradev": "personal" }
+```
+
+`claude-acs mirror [account] [--check|--dry-run]` (`scripts/mirror_account.py`)
+syncs it. With no account it syncs every declared mirror.
+
+| Part | How | Parity |
+|---|---|---|
+| `CLAUDE.md`, `hooks/`, `agents/`, `memory/`, each `projects/<slug>/memory/` | symlink → source | live |
+| `skills/`, `commands/`, `plugins/` | symlink → canonical `~/.claude` | live |
+| `settings.json`, `settings.local.json`, `.mcp.json` | copied, `<store>/<source>/` paths rewritten | on each `mirror` run (source wins, old file backed up) |
+| `.claude.json` | only `mcpServers` + per-project `hasTrustDialogAccepted` merged in | on each `mirror` run |
+| login, history, sessions, transcripts, caches | untouched | never shared |
+
+Settings are copied, not linked, because Claude Code rewrites them itself and an
+atomic rename would silently replace a symlink. So **change settings on the
+source**, then run `claude-acs mirror`. A setting changed on the mirror is reset
+by the next run (`--check` shows which keys drifted first).
+
+Auto-memory a mirror creates for a new project is moved into the source and
+linked back on the next run. A project with real memory dirs on both sides is
+reported as a conflict and left alone.
+
+`apply-profile` refuses a mirror and points at its source: apply the profile to
+`personal`, then `claude-acs mirror`.
+
+**Onboarding a new mirror:** add it to `mirrors`, run `claude-acs mirror <name>`,
+then `claude-acs sw <name>` → `claude` → `/login`. The account dir needs no
+manual setup. Telemetry follows `CLAUDE_OTEL_ORG_ACCOUNTS` in the toggle
+(not listed → off).
+
 ## Config
 
 - Manifest: [`profiles.json`](profiles.json). `core.plugins` is pinned to the

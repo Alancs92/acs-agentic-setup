@@ -43,6 +43,10 @@ Why:
 | `~/.claude-accounts/personal2/settings.json` | `claude-acs sw personal2` |
 | `~/.claude/settings.json` | `CLAUDE_CONFIG_DIR` unset (fallback) |
 
+**Mirror accounts are the exception:** `terradev` mirrors `personal` (see
+`profiles.json` `mirrors`). Never edit its `settings.json`; change `personal`, then
+run `claude-acs mirror`. Add new register rows to the source only.
+
 Source of truth for the account list: `ls ~/.claude-accounts/` (a directory
 with a `.claude.json` in it is an account). When a new account is added, apply
 every row of the register to it.

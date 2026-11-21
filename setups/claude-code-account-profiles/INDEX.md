@@ -10,6 +10,7 @@ per-account tweaks. Source of truth is `profiles.json`; applied via
 | [`design.md`](design.md) | Approved design + implementation notes (shared-skills finding, `--prune-skills` opt-in). |
 | [`profiles.json`](profiles.json) | The manifest: `core` + per-account overlays. |
 | [`scripts/`](scripts/INDEX.md) | `apply_profile.py` (resolver + applier) and its tests. |
+| [`profiles.json`](profiles.json) `mirrors` | Accounts that are another account under a different login (`terradev` → `personal`). See README "Mirror accounts". |
 | [`synced-settings.md`](synced-settings.md) | Settings kept identical on every account (e.g. `permissions.defaultMode = "auto"`), the files to touch, and why they aren't centralised. |
 
 Related: [`../../research/token-usage-audit.md`](../../research/token-usage-audit.md)
