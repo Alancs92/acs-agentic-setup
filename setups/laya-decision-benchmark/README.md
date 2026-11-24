@@ -70,6 +70,26 @@ committed**. The repo holds only code, cards (counts and paraphrases) and aggreg
 record passes the PHI gate before it is written. Records go to Claude through `claude -p`, as the
 triage agent already does, and to no other third party.
 
+### Archived run data
+
+After the run, the private cache was moved to the **work** OneDrive and removed from the laptop:
+
+```
+OneDrive - harrison.ai/Claude Laya Benchmark/
+  acs-laya-bench-2026-09-27.tar.xz          # data/ preds/ logs/ RUNLOG.md report.html … (78 files, 440 KB)
+  acs-laya-bench-2026-09-27.tar.xz.sha256
+```
+
+It goes to the work account, not a personal one, because the data is work content. The venv and the
+Hugging Face weights (1.7 GB) aren't archived; the install steps above rebuild them. To restore before a
+re-run or a report regeneration:
+
+```bash
+cd "$HOME/Library/CloudStorage/OneDrive-harrison.ai/Claude Laya Benchmark"
+shasum -a 256 -c acs-laya-bench-2026-09-27.tar.xz.sha256
+mkdir -p ~/.cache/acs-laya-bench && tar -xJf acs-laya-bench-2026-09-27.tar.xz -C ~/.cache/acs-laya-bench
+```
+
 ## Notes / known issues
 
 - **The live board was unreachable.** The Cloudflare account on this machine got 7403 on the D1
