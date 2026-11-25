@@ -1,0 +1,55 @@
+# netmon rules (strict YAML subset — see src/rules.rs). First match wins, in
+# file order. Matching is case-insensitive against nettop's truncated process
+# names; a trailing `*` means "starts with", otherwise the name must be equal.
+# Anything unmatched is class `ask`.
+
+work:
+  # browsers (Alan: "mostly work")
+  - Google Chrome*
+  - Safari*
+  - com.apple.Safari*
+  - Arc*
+  - firefox*
+  - Microsoft Edge*
+  # collaboration / dev
+  - Slack*
+  - zoom.us*
+  - ZoomPhone*
+  - Microsoft Teams*
+  - MSTeams*
+  - Code Helper*
+  - Visual Studio Co*
+  - Cursor*
+  - com.docker*
+  - Docker*
+  - git*
+  - ssh*
+  - claude*
+  - Claude*
+  # the Claude Code CLI shows up under its version number, e.g. 2.1.327
+  - 2.1.*
+  - node*
+  # VPN / endpoint clients (confirm which is the Harrison VPN client)
+  - Tailscale*
+  - IPNExtension*
+  - com.crowdstrike*
+
+personal:
+  - Spotify*
+  - Music*
+  - Steam*
+  - steam*
+
+# Domain seed for the later per-domain phase. v1 ignores this whole block.
+domains:
+  work:
+    - github.com
+    - githubusercontent.com
+    - atlassian.net
+    - atlassian.com
+    - zoom.us
+    - harrison.ai
+    - grafana.net
+    - grafana.com
+    - claude.ai
+    - anthropic.com

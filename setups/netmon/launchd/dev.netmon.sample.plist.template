@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- netmon sampler. Rendered by scripts/install.sh (@BINARY@ -> absolute path).
+     launchd never runs two instances of one job at once, and does not fire
+     while the Mac sleeps, so there is no catch-up storm after wake. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.netmon.sample</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@BINARY@</string>
+    <string>sample</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>120</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>Nice</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/dev/null</string>
+  <key>StandardErrorPath</key>
+  <string>/dev/null</string>
+</dict>
+</plist>

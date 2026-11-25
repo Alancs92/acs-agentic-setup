@@ -1,7 +1,7 @@
 # netmon — per-device daily network usage, by app
 
 - **Created:** 2026-11-25
-- **Status:** designing (design approved 2026-11-25; not yet implemented)
+- **Status:** built and tested (2026-11-25); not yet installed (launchd install awaits Alan's approval)
 - **Agents involved:** Claude Code (builder); other agents read its daily JSON
 - **Environment:** local (this Mac only, for now)
 - **Ticket:** TIX-2611-037
@@ -24,3 +24,17 @@ efficient, no leaks, must not bog down the machine.
 
 - [`design.md`](design.md) — approved design, approaches, builder check.
 - [`implementation-plan.md`](implementation-plan.md) — TDD task list.
+- [`SCHEMA.md`](SCHEMA.md) — tables, SQL views and units, for agents reading the data.
+
+## Use
+
+```
+cargo build --release
+netmon sample [--dry]                 # one sample (launchd runs this every 2 min)
+netmon report [--date YYYY-MM-DD]     # reports/<date>.json + 3-line summary
+netmon query --from D --to D --group-by day|app|class|network[,..] --format json|csv
+scripts/install.sh --dry-run          # shows what installing would do (install is a separate approval)
+```
+
+Tests: `cargo test`; release budgets (RSS, CPU, DB size, 1-year projection):
+`cargo test --release --test budget -- --ignored --nocapture`.

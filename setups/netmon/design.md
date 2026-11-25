@@ -1,7 +1,7 @@
 # Design: netmon — per-device daily network usage by app
 
 - **Date:** 2026-11-25
-- **Status:** approved design (Alan, 2026-11-25) — not yet implemented
+- **Status:** approved design (Alan, 2026-11-25) — built (Tasks 0–12 + scope additions), not yet installed. See "Build notes".
 - **Ticket:** TIX-2611-037
 
 ## Intent / why
@@ -238,3 +238,68 @@ it. No async runtime. Release profile tuned for size: `opt-level="z"` (or
    KB/day).
 5. **Report location:** `~/Library/Application Support/netmon/reports/`; no
    vault mirror for now.
+
+## Build notes (2026-11-25) — decisions and measurements
+
+**Scope additions approved by Alan during the build:** keep SQLite; < 100 MB per
+year total; daily rollups older than 5 years archived to per-year CSV; analysis
+friendly schema (UTC `ts` + local `day`, `schema_version`, SQL views,
+[`SCHEMA.md`](SCHEMA.md)); `netmon query` for streamed retrieval.
+
+**Builder's calls**
+
+- **Crates:** only `rusqlite` (`bundled`, default features off). No serde, no
+  YAML/TOML crate, no `libc` crate, no async runtime. JSON is hand-written
+  (string escaping unit-tested); `rules.yaml` is a deliberately tiny *strict*
+  YAML subset (three keys, `- pattern` lists, `domains:` block skipped) that
+  rejects anything else with a line number.
+- **Interface counters:** `netstat -ibn` parsed streaming (indexed from the end
+  of the line, since tunnels have no Address column), not `getifaddrs` FFI:
+  keeps the crate safe Rust. Counters are tracked **per interface** so an
+  unplugged adapter never looks like a counter reset. Gateway MAC: first
+  physical interface that carried traffic (`en0` first) via
+  `route -n get -ifscope enX default` then `arp -n`.
+- **Journal:** default rollback journal, `synchronous=FULL`, `cache_size`
+  256 KiB: no WAL side files, atomic per sample.
+- **Boot detection:** `kern.boottime` changes of <= 30 s are treated as clock
+  adjustment, not a reboot (a false reboot would book lifetime counters as one
+  window's traffic).
+- **Unattributed** is stored in `samples` (not as a fake app) and summed in
+  `daily_totals`; per-app queries exclude it, interface totals include it.
+- **Summary line count:** `netmon report` prints exactly 3 lines; unattributed
+  is called out on line 1 and as its own object in the JSON (the design asked
+  for both "3 lines" and "its own line").
+- **Archive:** plain CSV, `archive/<year>-apps.csv` + `<year>-totals.csv`
+  (two files because there are two rollup tables). gzip was skipped: a year of
+  rollups is ~1-2 MB of CSV, not worth a compression crate. Only whole years
+  that ended > 5 years ago are exported (write-once files), verified by
+  re-reading, deleted in the same transaction.
+- **Class cache (`app_class`) is refreshed by `report`/`query`, not in the
+  sample path:** the refresh scans every raw row (~260 ms); in `sample` it
+  pushed the daily maintenance run to 5.1 MB RSS.
+- **Failures** leave a single overwritten `last-error.txt` in the data dir
+  (bounded) and a non-zero exit; success removes it.
+- **`netmon sample --dry`** prints parsed nettop rows without touching the DB.
+
+**nettop `-s` / wall time (measured, real nettop, this Mac).** `-s` does not
+help with `-L 1`: wall time is a *cold-start* cost of nettop itself, not the
+delay. Back-to-back runs take 0.17–0.25 s; the first run after ~40 s idle took
+3.4–5.0 s (CPU 0.06–0.09 s, peak RSS 7.5–9 MB) regardless of `-s 1` or `-s 2`.
+`-s 0` is invalid (exit 64). Settled on `-s 1` (lowest valid) and kept the 10 s
+timeout (worst observed 5.0 s; two-minute cadence means every run is "cold").
+
+**Budgets (release build, `cargo test --release --test budget -- --ignored`;
+netmon's own `getrusage`, nettop excluded):**
+
+| | measured | budget |
+|---|---|---|
+| steady-state sample, median CPU (user+sys) | ~7 ms (real nettop run: 7–14 ms) | < 50 ms |
+| steady-state sample, peak RSS | 3.3 MB (real run 3.3–3.6 MB) | < 5 MB |
+| daily maintenance run (rollup+archive check), 36-day DB | 73 ms CPU, 4.0 MB RSS | stays < 5 MB |
+| DB at 35 days (25 k samples, 1 M app rows) | 34 MB | < 50 MB |
+| 1-year projection (35 d raw + 365 d worst-case rollups) | 37.7 MB | < 100 MB |
+| release binary | 1.39 MB (stripped, `opt-level="z"`, LTO) | — |
+
+`/usr/bin/time -l` folds waited-for children into its numbers (it would report
+nettop's 7.5 MB as netmon's), hence the opt-in `NETMON_SELF_STATS=1` line
+(`getrusage(RUSAGE_SELF)`, the crate's only `unsafe`).

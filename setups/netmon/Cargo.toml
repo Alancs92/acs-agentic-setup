@@ -1,0 +1,22 @@
+[package]
+name = "netmon"
+version = "0.1.0"
+edition = "2021"
+description = "Run-and-exit per-app network usage sampler (macOS nettop -> SQLite)"
+publish = false
+
+[[bin]]
+name = "netmon"
+path = "src/main.rs"
+
+[dependencies]
+# Only third-party crate. `bundled` so the binary does not depend on the system
+# libsqlite3 version; default features off (no extra bindings we do not use).
+rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -16,7 +16,17 @@
 - Budgets (tested, Task 11): netmon peak RSS < 5 MB, < 50 ms CPU per run, DB < ~50 MB.
 - Data dir `0700`, files `0600`; nothing personal in the repo.
 - Release profile: `opt-level="z"|"s"`, `lto`, `codegen-units=1`, `panic="abort"`, `strip`.
-- **Docs-only step so far: no Cargo files exist yet.** Task 0 creates them.
+- Storage budget (added 2026-11-25): total DB < 100 MB per year; projected by `tests/budget.rs`.
+
+> **Build status (2026-11-25):** Tasks 0–12 plus 7b and 10b are implemented
+> and green (`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+> `cargo test`, and the ignored release budget tests). Not installed; Task 13
+> (soak) runs after Alan approves installation. Layout differences from the table
+> below: the crate is a library (`src/lib.rs`) + thin `src/main.rs`; extra
+> modules `json.rs` (escaping), `query.rs`, `sample.rs` (the `sample` flow),
+> `selfstats.rs` (budget measurement), `testutil.rs`; `tests/` holds
+> `sample.rs`, `budget.rs`, `launchd.rs`, `common/`. Docs: `SCHEMA.md`. Measured
+> results and decisions are in `design.md` "Build notes".
 - Tests: pure functions get unit tests with fixtures; no test touches the real `nettop` except the explicitly marked integration tests.
 - Never run writing git commands from an agent; the orchestrator commits explicit paths.
 
@@ -95,6 +105,13 @@
 - [ ] Implement; run opportunistically from `sample` (at most once per day) so no second launchd job is needed.
 - [ ] Verify: `cargo test retention`.
 
+### Task 7b: Archive of rollups older than 5 years (added)
+
+**Files:** `src/store.rs`.
+- [x] Failing tests: whole years that ended > 5 years ago are exported to `archive/<year>-apps.csv` / `<year>-totals.csv` (header row, CSV-quoted names), verified by re-reading, deleted in the same transaction; running twice is a no-op; nothing to archive creates nothing; a failed export keeps the rows; files 0600, dir 0700.
+- [x] Implement `archive_before_year`, called from the once-a-day `maintain` (no extra job). Plain CSV: a year is ~1–2 MB, not worth a gzip crate.
+- [x] Verify: `cargo test store::tests::archive`.
+
 ### Task 8: Rules and classification
 
 **Files:** `src/rules.rs`.
@@ -115,6 +132,13 @@
 - [ ] Failing tests on a fixture DB: totals; home vs elsewhere split; per-class sums; unattributed line; reading a date that was rolled up gives the same totals as raw; empty day gives a valid zero report; JSON has `schema_version: 1`; 3-line summary format.
 - [ ] Implement; write `reports/YYYY-MM-DD.json` (0600) and print the summary.
 - [ ] Verify: `cargo test report`; manual on real data.
+
+### Task 10b: `netmon query` and SQL views (added)
+
+**Files:** `src/query.rs`, `src/store.rs` (views), `SCHEMA.md`.
+- [x] Failing tests on a fixture DB: group by day / app / class / network and combinations; inclusive date range; JSON (`schema_version: 1`, streamed rows) and CSV; empty range; rolled-up days give the same answer as raw; hostile names escaped; bad arguments rejected.
+- [x] Implement over `v_daily_app`, `v_daily_class`, `v_daily_network`; rows are written as SQLite yields them (no collecting).
+- [x] Verify: `cargo test query`; `SCHEMA.md` documents tables, views, units (bytes).
 
 ### Task 11: Perf-budget test
 
