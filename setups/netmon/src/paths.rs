@@ -44,6 +44,35 @@ pub fn write_private(path: &Path, contents: &[u8]) -> io::Result<()> {
     tighten_file(path)
 }
 
+/// Write `path` atomically: a 0600 temp file in the same directory is written
+/// and synced, then renamed over `path`, so a reader (or a crash) sees either
+/// the old file or the complete new one, never a partial write.
+pub fn write_private_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
+    let name = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "no file name"))?;
+    let mut tmp_name = std::ffi::OsString::from(".");
+    tmp_name.push(name);
+    tmp_name.push(".tmp");
+    let tmp = path.with_file_name(tmp_name);
+    let res = (|| {
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)?;
+        f.write_all(contents)?;
+        f.sync_all()?;
+        tighten_file(&tmp)?;
+        fs::rename(&tmp, path)
+    })();
+    if res.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,6 +80,30 @@ mod tests {
 
     fn mode(p: &Path) -> u32 {
         fs::metadata(p).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn atomic_write_replaces_whole_file_0600_and_leaves_no_temp() {
+        let t = TempDir::new("paths-atomic");
+        let f = t.path().join("r.json");
+        write_private_atomic(&f, b"first-long-content").unwrap();
+        fs::set_permissions(&f, fs::Permissions::from_mode(0o644)).unwrap();
+        write_private_atomic(&f, b"2nd").unwrap();
+        assert_eq!(fs::read(&f).unwrap(), b"2nd");
+        assert_eq!(mode(&f), 0o600);
+        let names: Vec<_> = fs::read_dir(t.path()).unwrap().collect();
+        assert_eq!(names.len(), 1, "no temp file left: {names:?}");
+    }
+
+    #[test]
+    fn atomic_write_failure_keeps_the_old_file() {
+        let t = TempDir::new("paths-atomic-fail");
+        let f = t.path().join("r.json");
+        write_private_atomic(&f, b"old").unwrap();
+        // a directory squats on the temp name, so the temp file cannot be made
+        fs::create_dir(t.path().join(".r.json.tmp")).unwrap();
+        assert!(write_private_atomic(&f, b"new").is_err());
+        assert_eq!(fs::read(&f).unwrap(), b"old");
     }
 
     #[test]

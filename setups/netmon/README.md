@@ -36,5 +36,7 @@ netmon query --from D --to D --group-by day|app|class|network[,..] --format json
 scripts/install.sh --dry-run          # shows what installing would do (install is a separate approval)
 ```
 
-Tests: `cargo test`; release budgets (RSS, CPU, DB size, 1-year projection):
+Checks: `scripts/check.sh` runs fmt, clippy (`-D warnings`), `cargo test` and the
+release budget tests (RSS, CPU, DB size, 1-year projection) — the budgets are
+enforced by that script. Budgets alone:
 `cargo test --release --test budget -- --ignored --nocapture`.

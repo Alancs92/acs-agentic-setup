@@ -5,7 +5,10 @@
 //! * boot time changed: every counter restarted, so all are new (delta = current);
 //! * new (pid,name) -> delta = current; pid reused by another name -> new;
 //! * counter went backwards -> reset, delta = current;
-//! * process vanished -> its state is dropped, nothing negative is emitted.
+//! * process vanished (nettop hides sockets-less processes, or a snapshot was
+//!   partial) -> its state is KEPT, so a reappearing process is not booked
+//!   twice; entries unseen for 24 h are dropped, at most 2,000 are kept, and a
+//!   reboot clears them. Nothing negative is ever emitted.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -16,7 +19,14 @@ pub struct ProcEntry {
     pub name: String,
     pub bytes_in: u64,
     pub bytes_out: u64,
+    /// Unix time of the last run whose snapshot contained this process.
+    pub last_seen: i64,
 }
+
+/// Vanished processes are forgotten after this long unseen.
+pub const STATE_MAX_AGE_S: i64 = 24 * 3600;
+/// Most vanished processes kept (the live snapshot is never truncated).
+pub const STATE_MAX_ENTRIES: usize = 2000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IfKind {
@@ -65,15 +75,17 @@ pub fn counter_delta(prev: Option<u64>, cur: u64, boot_changed: bool) -> u64 {
 pub struct Engine<'a> {
     prev: &'a State,
     boot_changed: bool,
+    now: i64,
     cur: HashMap<u32, ProcEntry>,
     deltas: BTreeMap<String, (u64, u64)>,
 }
 
 impl<'a> Engine<'a> {
-    pub fn new(prev: &'a State, boot_changed: bool) -> Self {
+    pub fn new(prev: &'a State, boot_changed: bool, now: i64) -> Self {
         Engine {
             prev,
             boot_changed,
+            now,
             cur: HashMap::with_capacity(prev.procs.len().max(64)),
             deltas: BTreeMap::new(),
         }
@@ -105,12 +117,31 @@ impl<'a> Engine<'a> {
                 name: row.name,
                 bytes_in: row.bytes_in,
                 bytes_out: row.bytes_out,
+                last_seen: self.now,
             },
         );
     }
 
-    /// Deltas (one per app name, name-sorted, zero rows omitted) and the new state.
-    pub fn finish(self) -> (Vec<AppDelta>, HashMap<u32, ProcEntry>) {
+    /// Deltas (one per app name, name-sorted, zero rows omitted) and the new
+    /// state: this snapshot plus the bounded set of processes it did not show.
+    pub fn finish(mut self) -> (Vec<AppDelta>, HashMap<u32, ProcEntry>) {
+        // After a reboot every counter restarted: old entries are meaningless.
+        if !self.boot_changed {
+            let mut vanished: Vec<(&u32, &ProcEntry)> = self
+                .prev
+                .procs
+                .iter()
+                .filter(|(pid, e)| {
+                    !self.cur.contains_key(pid)
+                        && self.now.saturating_sub(e.last_seen) <= STATE_MAX_AGE_S
+                })
+                .collect();
+            vanished.sort_by(|a, b| b.1.last_seen.cmp(&a.1.last_seen).then(a.0.cmp(b.0)));
+            vanished.truncate(STATE_MAX_ENTRIES.saturating_sub(self.cur.len()));
+            for (pid, e) in vanished {
+                self.cur.insert(*pid, e.clone());
+            }
+        }
         let deltas = self
             .deltas
             .into_iter()
@@ -126,7 +157,17 @@ impl<'a> Engine<'a> {
 
 /// Convenience wrapper over [`Engine`] for whole snapshots.
 pub fn compute(prev: &State, cur: &[Row], boot_changed: bool) -> (Vec<AppDelta>, State) {
-    let mut e = Engine::new(prev, boot_changed);
+    compute_at(prev, cur, boot_changed, 0)
+}
+
+/// As [`compute`], with the current time (for the vanished-entry age limit).
+pub fn compute_at(
+    prev: &State,
+    cur: &[Row],
+    boot_changed: bool,
+    now: i64,
+) -> (Vec<AppDelta>, State) {
+    let mut e = Engine::new(prev, boot_changed, now);
     for r in cur {
         e.feed(r.clone());
     }
@@ -255,12 +296,57 @@ mod tests {
     }
 
     #[test]
-    fn vanished_process_is_dropped_without_negative_delta() {
+    fn vanished_process_is_kept_without_negative_delta() {
         let prev = ready(&[row("a", 1, 100, 100), row("gone", 2, 500, 500)]);
         let (deltas, st) = compute(&prev, &[row("a", 1, 110, 100)], false);
         assert_eq!(d(&deltas, "gone"), (0, 0));
-        assert!(!st.procs.contains_key(&2));
+        assert!(st.procs.contains_key(&2));
         assert_eq!(d(&deltas, "a"), (10, 0));
+    }
+
+    #[test]
+    fn empty_snapshot_then_return_does_not_rebook_lifetimes() {
+        let prev = ready(&[row("big", 1, 40_000_000_000, 5)]);
+        let (_, mid) = compute(&prev, &[], false);
+        let (deltas, _) = compute(&mid, &[row("big", 1, 40_000_000_100, 5)], false);
+        assert_eq!(d(&deltas, "big"), (100, 0));
+    }
+
+    #[test]
+    fn vanished_entries_expire_after_24h() {
+        let prev = ready(&[row("gone", 2, 500, 500)]); // last_seen 0
+        let (_, st) = compute_at(&prev, &[], false, STATE_MAX_AGE_S);
+        assert!(st.procs.contains_key(&2), "exactly 24h is still kept");
+        let (_, st) = compute_at(&prev, &[], false, STATE_MAX_AGE_S + 1);
+        assert!(!st.procs.contains_key(&2));
+    }
+
+    #[test]
+    fn vanished_entries_are_capped_keeping_the_most_recent() {
+        let mut prev = ready(&[]);
+        for pid in 0..(STATE_MAX_ENTRIES as u32 + 50) {
+            prev.procs.insert(
+                pid,
+                ProcEntry {
+                    name: "p".into(),
+                    bytes_in: 1,
+                    bytes_out: 1,
+                    last_seen: i64::from(pid),
+                },
+            );
+        }
+        let (_, st) = compute_at(&prev, &[row("live", 99_999, 1, 1)], false, 3000);
+        assert_eq!(st.procs.len(), STATE_MAX_ENTRIES);
+        assert!(st.procs.contains_key(&99_999), "live row always kept");
+        assert!(!st.procs.contains_key(&0), "oldest dropped");
+        assert!(st.procs.contains_key(&(STATE_MAX_ENTRIES as u32 + 49)));
+    }
+
+    #[test]
+    fn reboot_clears_vanished_entries() {
+        let prev = ready(&[row("gone", 2, 500, 500)]);
+        let (_, st) = compute(&prev, &[row("a", 1, 1, 1)], true);
+        assert!(!st.procs.contains_key(&2));
     }
 
     #[test]
@@ -338,6 +424,13 @@ mod tests {
         let (d, _) = iface_deltas(&prev, &cur, false);
         assert_eq!((d.phys_in, d.phys_out), (100, 40));
         assert_eq!((d.vpn_in, d.vpn_out), (30, 20));
+    }
+
+    #[test]
+    fn interface_counter_drop_without_reboot_uses_current() {
+        let prev = ifstate(&[("en0", 1_000_000, 1_000_000)]);
+        let (d, _) = iface_deltas(&prev, &[ifc("en0", IfKind::Physical, 50, 2_000_000)], false);
+        assert_eq!((d.phys_in, d.phys_out), (50, 1_000_000));
     }
 
     #[test]

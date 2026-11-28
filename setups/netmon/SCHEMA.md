@@ -40,7 +40,7 @@ SELECT app, round(SUM(bytes_in+bytes_out)/1e9, 2) AS gb FROM v_daily_app
 | `daily_rollup` | samples older than 35 days summed per `(day, proc, home)`; kept up to 5 years | PK `(day, proc, home)` |
 | `daily_totals` | same, for the interface totals / coverage | PK `(day, home)`, `iface_in/out, vpn_in/out, unattr_in/out, samples, seconds` |
 | `sample_failures` | one row per skipped sample (v2; raw, 35 days, no rollup) | `id, ts, day, kind (timeout\|exit\|spawn\|io\|netinfo\|db), detail (<= 200 chars)`, index on `day` |
-| `proc_state`, `iface_state` | previous cumulative counters (delta baseline). **Do not read: internal.** | |
+| `proc_state`, `iface_state` | previous cumulative counters (delta baseline); `proc_state.last_seen` (v3) ages out vanished processes after 24 h, capped at 2,000. **Do not read: internal.** | |
 | `app_class` | `proc -> class` cache | PK `proc` |
 
 `interval_s` is the time since the previous sample (about 120; larger after sleep, because launchd does
@@ -71,7 +71,10 @@ streams rows. JSON shape (`schema_version` 1):
 `network` values are `home` / `elsewhere`. Groupings of only `day`/`network` read the authoritative
 interface totals (include unattributed); any grouping with `app` or `class` sums per-app deltas
 (exclude unattributed), so those can add up to less than the day total.
-`netmon report --date D` writes `reports/D.json` (also `schema_version` 1: totals, home/elsewhere, `vpn_hint`, `unattributed`, `gaps`, per-class, per-app).
+Per-app deltas come from nettop restricted to physical interfaces (`-t wifi -t wired`): loopback
+is excluded and VPN-tunnel traffic is attributed to the VPN client (class `work`), so per-app and
+per-class sums are **bounded by the interface total** (`report` adds a `warnings` entry if not).
+`netmon report --date D` writes `reports/D.json` (also `schema_version` 1: totals, home/elsewhere, `vpn_hint`, `unattributed`, `gaps`, `warnings` (array of strings, empty when sound), per-class, per-app). Written atomically (temp file + rename, 0600).
 
 `gaps` (in the report, and in `query` JSON before `rows`, for the requested range) is additive:
 `{"failed_samples":3,"by_kind":{"exit":1,"timeout":2},"longest_interval_s":120}`. `longest_interval_s` is the

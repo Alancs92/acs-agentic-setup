@@ -131,3 +131,101 @@ fn install_refuses_without_a_built_binary() {
     assert!(!o.status.success());
     let _ = std::fs::remove_dir_all(home);
 }
+
+fn install_dry(home: &Path, args: &[&str], netmon_dir: Option<&Path>) -> std::process::Output {
+    let mut c = Command::new("sh");
+    c.arg(root().join("scripts/install.sh"))
+        .arg("--dry-run")
+        .args(["--source", "/bin/sh"])
+        .args(args)
+        .env("HOME", home)
+        .env_remove("NETMON_DIR");
+    if let Some(d) = netmon_dir {
+        c.env("NETMON_DIR", d);
+    }
+    c.output().unwrap()
+}
+
+#[test]
+fn render_rejects_xml_and_sed_special_characters_in_the_binary_path() {
+    let d = tmp("xmlchars");
+    let out = d.join("o.plist");
+    for bad in ["/a<b/netmon", "/a>b/netmon", "/a\"b/netmon", "/a&b/netmon"] {
+        let o = Command::new("sh")
+            .arg(root().join("scripts/install.sh"))
+            .args(["--render", out.to_str().unwrap(), "--binary", bad])
+            .output()
+            .unwrap();
+        assert!(!o.status.success(), "{bad} accepted");
+        assert!(!out.exists());
+    }
+    let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn netmon_dir_at_install_time_is_set_in_the_agent_environment() {
+    let d = tmp("envdir");
+    let p = d.join("o.plist");
+    let o = Command::new("sh")
+        .arg(root().join("scripts/install.sh"))
+        .args(["--render", p.to_str().unwrap(), "--binary", "/x/netmon"])
+        .env("NETMON_DIR", "/tmp/my netmon")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(
+        extract(&p, "EnvironmentVariables.NETMON_DIR"),
+        "/tmp/my netmon"
+    );
+    assert!(Command::new("plutil")
+        .arg("-lint")
+        .arg(&p)
+        .status()
+        .unwrap()
+        .success());
+    // and absent when it was not set
+    let q = d.join("q.plist");
+    let o = Command::new("sh")
+        .arg(root().join("scripts/install.sh"))
+        .args(["--render", q.to_str().unwrap(), "--binary", "/x/netmon"])
+        .env_remove("NETMON_DIR")
+        .output()
+        .unwrap();
+    assert!(o.status.success());
+    assert!(!std::fs::read_to_string(&q)
+        .unwrap()
+        .contains("EnvironmentVariables"));
+    let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn install_warns_when_no_home_macs_are_known() {
+    let home = tmp("nomacs");
+    let o = install_dry(&home, &[], None);
+    assert!(o.status.success());
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("no home gateway MACs"), "{err}");
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn install_appends_macs_to_a_comments_only_config_and_keeps_existing_ones() {
+    let home = tmp("cfg-home");
+    let data = tmp("cfg-data");
+    std::fs::write(data.join("config"), "# only comments\n").unwrap();
+    let o = install_dry(&home, &["--home-macs", "aa:bb:cc:dd:ee:ff"], Some(&data));
+    assert!(o.status.success());
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("exists without MACs"), "{err}");
+    assert!(String::from_utf8_lossy(&o.stdout).contains("append home gateway MACs"));
+
+    std::fs::write(data.join("config"), "aa:bb:cc:dd:ee:01 # home\n").unwrap();
+    let o = install_dry(&home, &["--home-macs", "aa:bb:cc:dd:ee:ff"], Some(&data));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("NOT added"));
+    // a MAC only inside a comment does not count as configured
+    std::fs::write(data.join("config"), "# aa:bb:cc:dd:ee:01\n").unwrap();
+    let o = install_dry(&home, &[], Some(&data));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("no home gateway MACs"));
+    let _ = std::fs::remove_dir_all(home);
+    let _ = std::fs::remove_dir_all(data);
+}

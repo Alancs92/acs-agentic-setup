@@ -88,6 +88,7 @@ pub fn stream_lines(
     let (done_tx, done_rx) = mpsc::channel::<()>();
     let mut timed_out = false;
     let mut io_err: Option<io::Error> = None;
+    let mut status: Option<ExitStatus> = None;
 
     thread::scope(|s| {
         let child_ref = &child;
@@ -124,12 +125,40 @@ pub fn stream_lines(
             let mut c = child.lock().unwrap_or_else(|e| e.into_inner());
             let _ = c.kill();
         }
+        // Stdout is closed, but the child may not have exited. Keep the
+        // watchdog armed (done_tx alive) until the child is reaped: if it
+        // never exits, the watchdog kills it at the deadline and try_wait
+        // then reports the status.
+        loop {
+            let polled = {
+                let mut c = child.lock().unwrap_or_else(|e| e.into_inner());
+                c.try_wait()
+            };
+            match polled {
+                Ok(Some(st)) => {
+                    status = Some(st);
+                    break;
+                }
+                Ok(None) => thread::sleep(Duration::from_millis(2)),
+                Err(e) => {
+                    io_err.get_or_insert(e);
+                    break;
+                }
+            }
+        }
         drop(done_tx); // wakes the watchdog (Disconnected, not Timeout)
         timed_out = watchdog.join().unwrap_or(false);
     });
 
-    let mut child = child.into_inner().unwrap_or_else(|e| e.into_inner());
-    let status = child.wait().map_err(RunError::Io)?; // always reap
+    let status = match status {
+        Some(s) => s,
+        None => {
+            // try_wait failed: kill and reap so nothing is left behind.
+            let mut child = child.into_inner().unwrap_or_else(|e| e.into_inner());
+            let _ = child.kill();
+            child.wait().map_err(RunError::Io)?
+        }
+    };
     if timed_out {
         return Err(RunError::Timeout);
     }
@@ -177,12 +206,21 @@ pub fn nettop_command() -> Command {
     let prog = std::env::var_os("NETMON_NETTOP").unwrap_or_else(|| "/usr/bin/nettop".into());
     let mut c = Command::new(prog);
     c.args([
+        // No DNS resolution: we only read per-process byte counters, and
+        // reverse lookups made nettop stall to the 10 s cap on a slow resolver.
+        "-n",
         "-P",
         "-L",
         "1",
         "-x",
         "-J",
         "bytes_in,bytes_out",
+        // Physical interfaces only: excludes loopback and traffic inside a VPN
+        // tunnel (counted once, as the VPN client's encrypted traffic).
+        "-t",
+        "wifi",
+        "-t",
+        "wired",
         "-s",
         NETTOP_DELAY_S,
     ]);
@@ -266,6 +304,24 @@ mod tests {
         }
     }
 
+    #[test]
+    fn nettop_is_limited_to_physical_interfaces() {
+        let c = nettop_command();
+        let args: Vec<String> = c
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let joined = args.join(" ");
+        assert!(joined.contains("-t wifi"), "{joined}");
+        assert!(joined.contains("-t wired"), "{joined}");
+    }
+
+    #[test]
+    fn nettop_skips_dns_resolution() {
+        let c = nettop_command();
+        assert!(c.get_args().any(|a| a == "-n"), "nettop must run with -n");
+    }
+
     mod runner {
         use super::*;
 
@@ -279,6 +335,22 @@ mod tests {
         fn hung_child_is_killed_within_timeout() {
             let t = Instant::now();
             let r = run_nettop(&mut sh("exec sleep 30"), Duration::from_millis(300), |_| {});
+            assert!(matches!(r, Err(RunError::Timeout)), "{r:?}");
+            assert!(
+                t.elapsed() < Duration::from_secs(5),
+                "took {:?}",
+                t.elapsed()
+            );
+        }
+
+        #[test]
+        fn child_that_closes_stdout_then_hangs_is_killed_within_timeout() {
+            let t = Instant::now();
+            let r = run_nettop(
+                &mut sh("exec 1>&-; exec sleep 30"),
+                Duration::from_millis(300),
+                |_| {},
+            );
             assert!(matches!(r, Err(RunError::Timeout)), "{r:?}");
             assert!(
                 t.elapsed() < Duration::from_secs(5),

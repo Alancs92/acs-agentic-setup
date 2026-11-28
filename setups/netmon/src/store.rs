@@ -1,10 +1,11 @@
 //! SQLite store: schema, one-transaction sample writes, retention/rollup,
 //! 5-year CSV archive, class cache. Schema documented in `SCHEMA.md`.
 //!
-//! Journal choice: default rollback journal (`DELETE`), `synchronous=FULL`.
-//! A sample is a tiny write every 2 minutes, so the extra fsync is free, there
-//! are no `-wal`/`-shm` side files to leak or leave at a looser mode, and a
-//! crash mid-write leaves the previous state intact.
+//! Journal choice: WAL with `synchronous=NORMAL`. Readers (`report`, `query`,
+//! a paused `query | less`) never block the sampler's writes. A crash can lose
+//! at most the last committed sample (never corrupt the DB); the next run
+//! re-derives deltas from the stored counters. `-wal`/`-shm` sit beside the DB
+//! (same 0600 mode, removed when the last connection closes).
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -20,7 +21,7 @@ use crate::rules::Rules;
 
 pub type Result<T> = rusqlite::Result<T>;
 
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 /// Raw 2-minute deltas are kept this long, then rolled up per (day, app, home).
 pub const RETENTION_DAYS: i64 = 35;
 /// Daily rollups of years that ended more than this long ago are archived.
@@ -30,7 +31,13 @@ pub const ARCHIVE_YEARS: i64 = 5;
 /// step's version (a fresh DB starts at 0 and runs them all). Each step is
 /// idempotent (`IF NOT EXISTS`) and runs in one transaction with the version
 /// bump. Never edit a released step: append a new one and raise `SCHEMA_VERSION`.
-const MIGRATIONS: &[(i64, &str)] = &[(1, SCHEMA_V1), (2, MIGRATION_V2)];
+const MIGRATIONS: &[(i64, &str)] = &[(1, SCHEMA_V1), (2, MIGRATION_V2), (3, MIGRATION_V3)];
+
+/// v3: processes absent from a snapshot keep their state (bounded by age), so
+/// each entry records when it was last seen. Pre-v3 rows get 0 (= very old):
+/// they are used for the next delta and then age out.
+const MIGRATION_V3: &str =
+    "ALTER TABLE proc_state ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0;";
 
 /// v2: skipped-sample / gap tracking.
 const MIGRATION_V2: &str = "
@@ -189,6 +196,9 @@ impl Store {
         // pages, and in the daily maintenance run it is the dominant RSS cost
         // (measured: -256 -> 4.6 MB peak, -16 -> 4.4 MB; steady-state unchanged).
         conn.pragma_update(None, "cache_size", -16)?;
+        // WAL: a paused reader (`netmon query | less`) never blocks the sampler.
+        let _mode: String = conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0))?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
         let ver: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
         if ver > SCHEMA_VERSION {
             return Err(rusqlite::Error::InvalidParameterName(format!(
@@ -284,7 +294,7 @@ impl Store {
         };
         let mut q = self
             .conn
-            .prepare("SELECT pid, proc, bytes_in, bytes_out FROM proc_state")?;
+            .prepare("SELECT pid, proc, bytes_in, bytes_out, last_seen FROM proc_state")?;
         let mut rows = q.query([])?;
         while let Some(r) = rows.next()? {
             st.procs.insert(
@@ -293,6 +303,7 @@ impl Store {
                     name: r.get(1)?,
                     bytes_in: r.get::<_, i64>(2)? as u64,
                     bytes_out: r.get::<_, i64>(3)? as u64,
+                    last_seen: r.get(4)?,
                 },
             );
         }
@@ -345,10 +356,16 @@ impl Store {
         tx.execute("DELETE FROM proc_state", [])?;
         {
             let mut ins = tx.prepare(
-                "INSERT INTO proc_state(pid,proc,bytes_in,bytes_out) VALUES(?1,?2,?3,?4)",
+                "INSERT INTO proc_state(pid,proc,bytes_in,bytes_out,last_seen) VALUES(?1,?2,?3,?4,?5)",
             )?;
             for (pid, p) in a.procs {
-                ins.execute(params![pid, p.name, i(p.bytes_in), i(p.bytes_out)])?;
+                ins.execute(params![
+                    pid,
+                    p.name,
+                    i(p.bytes_in),
+                    i(p.bytes_out),
+                    p.last_seen
+                ])?;
             }
         }
         tx.execute("DELETE FROM iface_state", [])?;
@@ -475,6 +492,7 @@ impl Store {
                 "SELECT COUNT(*) FROM daily_rollup WHERE substr(day,1,4)=?1",
                 y,
                 5,
+                3,
             )?;
             export_csv(
                 &tx,
@@ -485,6 +503,7 @@ impl Store {
                 "SELECT COUNT(*) FROM daily_totals WHERE substr(day,1,4)=?1",
                 y,
                 10,
+                2,
             )?;
             tx.execute("DELETE FROM daily_rollup WHERE substr(day,1,4)=?1", [y])?;
             tx.execute("DELETE FROM daily_totals WHERE substr(day,1,4)=?1", [y])?;
@@ -526,15 +545,23 @@ impl Store {
         if self.meta_text("last_maint_day")?.as_deref() == Some(today.as_str()) {
             return Ok(false);
         }
-        let cutoff = self.local_day(&format!("-{RETENTION_DAYS} days"))?;
-        self.rollup_before(&cutoff)?;
-        let archive_cutoff = self.local_day(&format!("-{ARCHIVE_YEARS} years"))?;
-        self.archive_before_year(archive_dir, &archive_cutoff[..4])?;
-        self.conn.execute(
+        let steps = (|| -> Result<()> {
+            let cutoff = self.local_day(&format!("-{RETENTION_DAYS} days"))?;
+            self.rollup_before(&cutoff)?;
+            let archive_cutoff = self.local_day(&format!("-{ARCHIVE_YEARS} years"))?;
+            self.archive_before_year(archive_dir, &archive_cutoff[..4])?;
+            Ok(())
+        })();
+        // Record the attempt day whatever the outcome: a failing maintenance
+        // (unwritable archive dir, full disk) is tried once a day and logged
+        // once, not every sample.
+        let marked = self.conn.execute(
             "INSERT INTO meta(key,value) VALUES('last_maint_day',?1)
              ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             [&today],
-        )?;
+        );
+        steps?;
+        marked?;
         Ok(true)
     }
 }
@@ -564,6 +591,7 @@ fn export_csv(
     count_sql: &str,
     year: &str,
     cols: usize,
+    key_cols: usize,
 ) -> Result<()> {
     let expected: i64 = tx.query_row(count_sql, [year], |r| r.get(0))?;
     let tmp = dir.join(format!("{name}.tmp"));
@@ -614,13 +642,126 @@ fn export_csv(
             )))
         }
     };
-    match written.and_then(verify) {
-        Ok(()) => fs::rename(&tmp, &fin).map_err(io_err),
-        Err(e) => {
-            let _ = fs::remove_file(&tmp);
-            Err(e)
+    let result = written
+        .and_then(verify)
+        .and_then(|()| publish(dir, &tmp, &fin, name, header, key_cols));
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result
+}
+
+/// Split one CSV line into fields (RFC 4180 quoting, as written by `csv_field`).
+fn split_csv_line(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut quoted = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' if quoted && chars.peek() == Some(&'"') => {
+                cur.push('"');
+                chars.next();
+            }
+            '"' => quoted = !quoted,
+            ',' if !quoted => out.push(std::mem::take(&mut cur)),
+            _ => cur.push(c),
         }
     }
+    out.push(cur);
+    out
+}
+
+fn csv_key(line: &str, key_cols: usize) -> String {
+    split_csv_line(line)
+        .into_iter()
+        .take(key_cols)
+        .collect::<Vec<_>>()
+        .join("\u{1f}")
+}
+
+fn sync_dir(dir: &Path) -> Result<()> {
+    File::open(dir).and_then(|d| d.sync_all()).map_err(io_err)
+}
+
+/// Move the verified `tmp` into place WITHOUT ever replacing existing data.
+/// If `fin` already exists (a year that was archived before, e.g. rows that
+/// reappeared after a clock error or a crash between rename and commit), the
+/// two are merged: existing rows first, then new rows whose key
+/// (`key_cols` leading fields) is not already present — existing rows win. The
+/// merged file is written to a temp name, its row count verified, renamed, and
+/// the directory fsynced.
+fn publish(
+    dir: &Path,
+    tmp: &Path,
+    fin: &Path,
+    name: &str,
+    header: &str,
+    key_cols: usize,
+) -> Result<()> {
+    if !fin.exists() {
+        fs::rename(tmp, fin).map_err(io_err)?;
+        return sync_dir(dir);
+    }
+    let merged = dir.join(format!("{name}.merge.tmp"));
+    let res = (|| -> Result<()> {
+        let bad = |m: String| rusqlite::Error::InvalidParameterName(m);
+        let mut existing = BufReader::new(File::open(fin).map_err(io_err)?).lines();
+        match existing.next() {
+            Some(Ok(h)) if h == header => {}
+            _ => {
+                return Err(bad(format!(
+                    "existing archive {name} has an unexpected header"
+                )))
+            }
+        }
+        let f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&merged)
+            .map_err(io_err)?;
+        let mut w = BufWriter::new(f);
+        writeln!(w, "{header}").map_err(io_err)?;
+        let mut keys = std::collections::HashSet::new();
+        let mut total = 0usize;
+        for l in existing {
+            let l = l.map_err(io_err)?;
+            if l.is_empty() {
+                continue;
+            }
+            keys.insert(csv_key(&l, key_cols));
+            writeln!(w, "{l}").map_err(io_err)?;
+            total += 1;
+        }
+        let mut lines = BufReader::new(File::open(tmp).map_err(io_err)?).lines();
+        lines.next(); // header
+        for l in lines {
+            let l = l.map_err(io_err)?;
+            if l.is_empty() || !keys.insert(csv_key(&l, key_cols)) {
+                continue;
+            }
+            writeln!(w, "{l}").map_err(io_err)?;
+            total += 1;
+        }
+        w.flush().map_err(io_err)?;
+        w.get_ref().sync_all().map_err(io_err)?;
+        let lines = BufReader::new(File::open(&merged).map_err(io_err)?)
+            .lines()
+            .count()
+            .saturating_sub(1);
+        if lines != total {
+            return Err(bad(format!(
+                "archive merge verification failed for {name}: expected={total} file={lines}"
+            )));
+        }
+        fs::rename(&merged, fin).map_err(io_err)?;
+        sync_dir(dir)
+    })();
+    let _ = fs::remove_file(&merged);
+    let _ = fs::remove_file(tmp);
+    res
 }
 
 #[cfg(test)]
@@ -755,8 +896,9 @@ mod tests {
             .conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 2);
-        assert_eq!(s.meta_i64("schema_version").unwrap(), Some(2));
+        assert_eq!(v, SCHEMA_VERSION);
+        assert_eq!(s.meta_i64("schema_version").unwrap(), Some(SCHEMA_VERSION));
+        s.load_state().unwrap(); // v3 column exists
         s.record_failure(100, "timeout", "x").unwrap(); // new table exists
         let n: i64 = s
             .conn
@@ -837,6 +979,7 @@ mod tests {
                 name: "Safari".into(),
                 bytes_in: 5,
                 bytes_out: 6,
+                last_seen: 1000,
             },
         );
         let mut ifaces = HashMap::new();
@@ -964,10 +1107,10 @@ mod tests {
         }
 
         #[test]
-        fn chunked_rollup_over_a_big_backlog_preserves_totals() {
+        fn rollup_over_a_big_backlog_preserves_totals() {
             let t = TempDir::new("ret-chunks");
             let mut s = open(&t);
-            // 250 samples (> 2 chunks) over one old day, alternating networks
+            // 250 samples over one old day, alternating networks
             for n in 0..250i64 {
                 put(
                     &mut s,
@@ -1135,6 +1278,102 @@ mod tests {
             assert!(s.archive_before_year(&dir, "2020").is_err());
             assert_eq!(count(&s, "daily_rollup"), 1);
         }
+
+        #[test]
+        fn existing_year_file_is_merged_never_overwritten() {
+            let t = TempDir::new("arch-merge");
+            let mut s = open(&t);
+            let dir = t.path().join("archive");
+            fs::create_dir_all(&dir).unwrap();
+            // A previous archive of 2019 (one row also reappears in the DB).
+            fs::write(
+                dir.join("2019-apps.csv"),
+                "day,proc,home,bytes_in,bytes_out\n2019-01-01,old,1,1,2\n2019-03-01,\"x,y\",0,5,6\n",
+            )
+            .unwrap();
+            fs::write(
+                dir.join("2019-totals.csv"),
+                "day,home,iface_in,iface_out,vpn_in,vpn_out,unattr_in,unattr_out,samples,seconds\n2019-01-01,1,1,1,1,1,1,1,1,1\n",
+            )
+            .unwrap();
+            insert_rollup(&s, "2019-03-01", "x,y", 0, 5, 6); // duplicate key
+            insert_rollup(&s, "2019-04-01", "new", 1, 7, 8);
+            insert_totals(&s, "2019-01-01", 1); // duplicate key
+            insert_totals(&s, "2019-02-01", 1);
+            s.archive_before_year(&dir, "2020").unwrap();
+            let apps = fs::read_to_string(dir.join("2019-apps.csv")).unwrap();
+            assert_eq!(
+                apps,
+                "day,proc,home,bytes_in,bytes_out\n2019-01-01,old,1,1,2\n2019-03-01,\"x,y\",0,5,6\n2019-04-01,new,1,7,8\n"
+            );
+            let tot = fs::read_to_string(dir.join("2019-totals.csv")).unwrap();
+            assert_eq!(tot.lines().count(), 3, "{tot}");
+            assert!(
+                tot.contains("2019-01-01,1,1,1,1,1,1,1,1,1\n"),
+                "existing wins"
+            );
+            assert_eq!(count(&s, "daily_rollup"), 0);
+            for f in fs::read_dir(&dir).unwrap() {
+                let n = f.unwrap().file_name().into_string().unwrap();
+                assert!(!n.ends_with(".tmp"), "leftover {n}");
+            }
+        }
+
+        #[test]
+        fn existing_file_with_a_foreign_header_blocks_the_archive() {
+            let t = TempDir::new("arch-badhdr");
+            let mut s = open(&t);
+            let dir = t.path().join("archive");
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("2019-apps.csv"), "garbage\n1,2\n").unwrap();
+            insert_rollup(&s, "2019-03-01", "a", 1, 5, 6);
+            assert!(s.archive_before_year(&dir, "2020").is_err());
+            assert_eq!(count(&s, "daily_rollup"), 1, "rows kept");
+            assert_eq!(
+                fs::read_to_string(dir.join("2019-apps.csv")).unwrap(),
+                "garbage\n1,2\n"
+            );
+        }
+    }
+
+    #[test]
+    fn failed_maintenance_is_attempted_once_per_day() {
+        let t = TempDir::new("maint-fail");
+        let mut s = open(&t);
+        put(&mut s, 1_000_000_000, true, &[("a", 1, 1)], 1, 0);
+        let blocker = t.path().join("blocker");
+        fs::write(&blocker, b"x").unwrap();
+        // a 2001 rollup row forces an archive attempt into an unusable dir
+        s.conn
+            .execute(
+                "INSERT INTO daily_rollup VALUES('2001-01-01','a',1,1,1)",
+                [],
+            )
+            .unwrap();
+        assert!(
+            s.maintain(&blocker).is_err(),
+            "first attempt reports failure"
+        );
+        assert!(
+            !s.maintain(&blocker).unwrap(),
+            "second attempt the same day is skipped"
+        );
+    }
+
+    #[test]
+    fn an_open_reader_does_not_block_the_writer() {
+        let t = TempDir::new("wal-reader");
+        let mut s = open(&t);
+        put(&mut s, 1_700_000_000, true, &[("a", 1, 1)], 1, 0);
+        // A second connection with a read statement left half-consumed, like
+        // `netmon query | less` paused on a full pipe.
+        let reader = Store::open(&t.path().join("netmon.db")).unwrap();
+        let mut q = reader.conn.prepare("SELECT * FROM samples").unwrap();
+        let mut rows = q.query([]).unwrap();
+        assert!(rows.next().unwrap().is_some());
+        put(&mut s, 1_700_000_120, true, &[("a", 1, 1)], 1, 0); // must not time out
+        assert_eq!(count(&s, "samples"), 2);
+        s.record_failure(1_700_000_200, "exit", "x").unwrap();
     }
 
     #[test]

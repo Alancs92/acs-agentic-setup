@@ -343,6 +343,113 @@ fn small_boottime_jitter_is_not_a_reboot() {
 }
 
 #[test]
+fn clock_step_is_not_a_reboot_and_is_logged() {
+    let f = Fake::new("clock-step");
+    f.nettop(&[("a.10", 1_000_000, 1_000_000)]);
+    f.netstat((9_000_000, 9_000_000), (0, 0));
+    run_ok(&f);
+    // boottime jumps by an hour, but interface counters keep growing
+    f.set("boot.txt", "{ sec = 1795005637, usec = 1 } x\n");
+    f.nettop(&[("a.10", 1_000_100, 1_000_200)]);
+    f.netstat((9_000_500, 9_000_700), (0, 0));
+    run_ok(&f);
+    assert_eq!(delta(&f, "a"), (100, 200), "not booked as new");
+    let (i, o): (i64, i64) = f
+        .db()
+        .query_row("SELECT iface_in, iface_out FROM samples", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert_eq!((i, o), (500, 700), "no since-boot interface total");
+    let log = std::fs::read_to_string(f.data.join("netmon.log")).unwrap();
+    assert!(log.contains("clock_step"), "{log}");
+    // the new boot time is stored, so the next run is quiet
+    run_ok(&f);
+    let log2 = std::fs::read_to_string(f.data.join("netmon.log")).unwrap();
+    assert_eq!(log2.matches("clock_step").count(), 1, "{log2}");
+}
+
+#[test]
+fn counter_reset_without_boottime_change_uses_current_for_interfaces() {
+    let f = Fake::new("counter-reset");
+    f.nettop(&[("a.10", 100, 100)]);
+    f.netstat((9_000_000, 9_000_000), (0, 0));
+    run_ok(&f);
+    f.nettop(&[("a.10", 130, 140)]);
+    f.netstat((700, 800), (0, 0)); // interface bounced, boottime unchanged
+    run_ok(&f);
+    assert_eq!(delta(&f, "a"), (30, 40));
+    let (i, o): (i64, i64) = f
+        .db()
+        .query_row("SELECT iface_in, iface_out FROM samples", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert_eq!((i, o), (700, 800));
+}
+
+#[test]
+fn empty_snapshot_is_recorded_and_does_not_rebook_lifetimes() {
+    // Offline, or nettop listing nothing, is a valid sample: retained state
+    // keeps the next delta honest, and the interface total is still recorded.
+    let f = Fake::new("empty-snap");
+    f.nettop(&[("big.10", 40_000_000_000, 5)]);
+    f.netstat((1000, 1000), (0, 0));
+    run_ok(&f);
+    f.nettop(&[]); // exits 0 with only the header
+    f.netstat((1050, 1050), (0, 0));
+    run_ok(&f);
+    assert_eq!(count(&f, "sample_failures"), 0);
+    f.nettop(&[("big.10", 40_000_000_100, 5)]);
+    f.netstat((1100, 1100), (0, 0));
+    run_ok(&f);
+    assert_eq!(delta(&f, "big"), (100, 0));
+}
+
+#[test]
+fn shrinking_snapshot_never_wedges_sampling() {
+    // Quitting a multi-process app (or a Wi-Fi drop) can halve the row count
+    // for good. Every later sample must still succeed, and processes that
+    // come back are not re-booked.
+    let f = Fake::new("shrink-snap");
+    let names: Vec<String> = (0..30).map(|n| format!("p{n}.{}", 100 + n)).collect();
+    let all: Vec<(&str, u64, u64)> = names.iter().map(|n| (n.as_str(), 10, 10)).collect();
+    f.nettop(&all);
+    f.netstat((1000, 1000), (0, 0));
+    run_ok(&f);
+    f.nettop(&all[..10]);
+    run_ok(&f);
+    run_ok(&f);
+    assert_eq!(count(&f, "sample_failures"), 0);
+    let mut back = all.clone();
+    back[29].1 = 25; // p29 returns with 15 more bytes in
+    f.nettop(&back);
+    run_ok(&f);
+    assert_eq!(delta(&f, "p29"), (15, 0));
+}
+
+#[test]
+fn whole_run_deadline_logs_a_timeout_and_exits_nonzero() {
+    let f = Fake::new("run-deadline");
+    f.nettop(&[("a.10", 1, 1)]);
+    f.netstat((1000, 1000), (0, 0));
+    run_ok(&f);
+    f.flag("hang", true);
+    let t = std::time::Instant::now();
+    let o = f
+        .cmd(netmon())
+        .arg("sample")
+        .env("NETMON_RUN_DEADLINE_MS", "600")
+        .env("NETMON_NETTOP_TIMEOUT_MS", "20000")
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+    assert!(t.elapsed() < std::time::Duration::from_secs(10));
+    let log = std::fs::read_to_string(f.data.join("netmon.log")).unwrap();
+    assert!(log.contains("sample timeout"), "{log}");
+}
+
+#[test]
 fn files_and_dir_are_private() {
     use std::os::unix::fs::PermissionsExt;
     let f = Fake::new("perms");

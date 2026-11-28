@@ -208,7 +208,7 @@ fn sample_run_stays_within_budget() {
     fill_raw(&f, DAYS_RAW + 1); // 36 days: the first run's maintenance rolls one day up
     set_nettop(&f, 0);
 
-    let maint = run_sample(&f); // includes the once-a-day rollup + class sync
+    let maint = run_sample(&f); // includes the once-a-day rollup + archive check
     eprintln!("maintenance run: {maint:?}");
 
     let mut runs = Vec::new();

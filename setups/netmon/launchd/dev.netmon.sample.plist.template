@@ -22,6 +22,7 @@
   <true/>
   <key>Nice</key>
   <integer>10</integer>
+  @ENVIRONMENT@
   <key>StandardOutPath</key>
   <string>/dev/null</string>
   <key>StandardErrorPath</key>

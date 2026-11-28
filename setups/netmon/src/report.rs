@@ -49,6 +49,8 @@ pub struct Report {
     pub apps: Vec<AppUse>,
     /// Skipped samples and the longest sampling interval that day.
     pub gaps: Gaps,
+    /// Data-consistency problems (empty when the day looks sound).
+    pub warnings: Vec<String>,
 }
 
 fn class_idx(c: Class) -> usize {
@@ -95,6 +97,7 @@ pub fn build(store: &Store, rules: &Rules, date: &str) -> rusqlite::Result<Repor
         classes: [Bytes::default(); 3],
         apps: Vec::new(),
         gaps: store.gaps(date, date)?,
+        warnings: Vec::new(),
     };
     let c = store.conn();
     let mut q = c.prepare(
@@ -139,7 +142,29 @@ pub fn build(store: &Store, rules: &Rules, date: &str) -> rusqlite::Result<Repor
         r.classes[class_idx(class)].add(bytes);
         r.apps.push(AppUse { name, class, bytes });
     }
+    r.warnings = consistency_warnings(&r);
     Ok(r)
+}
+
+/// Per-app bytes are collected on physical interfaces only (see design.md
+/// "Interface totals"), so their sum should never exceed the device total.
+/// Tolerance for counter timing skew between nettop and netstat.
+const APP_SUM_TOLERANCE_PERCENT: u64 = 5;
+
+fn consistency_warnings(r: &Report) -> Vec<String> {
+    let mut sum = Bytes::default();
+    for c in &r.classes {
+        sum.add(*c);
+    }
+    let (apps, total) = (sum.total(), r.total.total());
+    let mut w = Vec::new();
+    if apps > total.saturating_add(total / 100 * APP_SUM_TOLERANCE_PERCENT) {
+        w.push(format!(
+            "per-app bytes ({apps}) exceed the interface total ({total}) by more than \
+             {APP_SUM_TOLERANCE_PERCENT}%: per-app and per-class numbers are unreliable for this day"
+        ));
+    }
+    w
 }
 
 fn gb(b: u64) -> f64 {
@@ -178,7 +203,14 @@ pub fn to_json(r: &Report) -> String {
     push_bytes(&mut o, r.unattributed);
     o.push_str(",\"gaps\":");
     r.gaps.push_json(&mut o);
-    o.push_str(",\"classes\":{");
+    o.push_str(",\"warnings\":[");
+    for (n, w) in r.warnings.iter().enumerate() {
+        if n > 0 {
+            o.push(',');
+        }
+        json::push_str(&mut o, w);
+    }
+    o.push_str("],\"classes\":{");
     for (n, c) in CLASSES.iter().enumerate() {
         if n > 0 {
             o.push(',');
@@ -224,6 +256,9 @@ pub fn summary(r: &Report) -> String {
             r.gaps.kinds_text()
         ));
     }
+    if !r.warnings.is_empty() {
+        l1.push_str(", WARNING: per-app bytes exceed the interface total");
+    }
     let l2 = format!(
         "home {:.2} GB | elsewhere {:.2} GB | vpn hint {:.2} GB",
         gb(r.home.total()),
@@ -253,7 +288,7 @@ pub fn write_report_file(data_dir: &Path, r: &Report) -> std::io::Result<std::pa
     let dir = data_dir.join("reports");
     paths::ensure_dir(&dir)?;
     let p = dir.join(format!("{}.json", r.date));
-    paths::write_private(&p, to_json(r).as_bytes())?;
+    paths::write_private_atomic(&p, to_json(r).as_bytes())?;
     Ok(p)
 }
 
@@ -292,6 +327,31 @@ mod tests {
             })
             .unwrap();
         (t, s, day)
+    }
+
+    #[test]
+    fn apps_exceeding_the_interface_total_add_a_warning() {
+        let (_t, s, day) = setup();
+        let r = build(&s, &rules(), &day).unwrap();
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+        assert!(to_json(&r).contains("\"warnings\":[]"));
+
+        let t = TempDir::new("report-warn");
+        let mut s = Store::open(&t.path().join("netmon.db")).unwrap();
+        // apps 1000 in vs interface 100 in: 10x over
+        put_sample(&mut s, T0, true, &[("Slack Helper", 1000, 0)], 100, 0);
+        let r = build(&s, &rules(), &day).unwrap();
+        assert_eq!(r.warnings.len(), 1, "{:?}", r.warnings);
+        let j = to_json(&r);
+        assert!(j.contains("\"warnings\":[\"per-app bytes ("), "{j}");
+        assert!(summary(&r).lines().next().unwrap().contains("WARNING"));
+        assert_eq!(summary(&r).lines().count(), 3);
+
+        // within the 5 % tolerance: no warning
+        let t = TempDir::new("report-tol");
+        let mut s = Store::open(&t.path().join("netmon.db")).unwrap();
+        put_sample(&mut s, T0, true, &[("Slack Helper", 1040, 0)], 1000, 0);
+        assert!(build(&s, &rules(), &day).unwrap().warnings.is_empty());
     }
 
     fn rules() -> Rules {

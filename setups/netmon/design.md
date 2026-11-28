@@ -21,7 +21,7 @@ kill other processes, runs every 2 minutes.**
 - Per-app GB, classified `work | personal | ask` via a rules file.
 - GB split **home vs elsewhere** (home = configured gateway MAC list).
 - A daily JSON report other agents can read, plus a 3-line text summary.
-- Hard resource budgets, enforced by a test (below).
+- Hard resource budgets, enforced by `scripts/check.sh` (below).
 
 ## Non-goals (v1)
 
@@ -106,8 +106,16 @@ Counters are per-process cumulative, so `delta = current − previous`:
   treated as exited. Same name and pid with a lower counter → reset rule.
 - **Process exited between samples:** its final bytes after the last sample
   are unobservable from nettop; they show up as **unattributed** (below).
-- **Reboot** (`kern.boottime` changed): all process counters restarted; drop
-  prior per-process state and treat all as new.
+- **Process missing from a snapshot** (nettop hides socket-less processes): its
+  state is **kept**, so it is not re-booked when it reappears. Bounded: entries
+  unseen for 24 h are dropped, at most 2,000 are kept, a reboot clears them.
+- **Empty or partial snapshot:** a valid sample. Retained state (above) keeps
+  the next delta honest, and the interface total is still recorded. It is *not*
+  rejected: the baseline only updates on success, so rejecting small snapshots
+  would wedge sampling for good after a legitimate drop (quitting a
+  multi-process app, Wi-Fi going away).
+- **Reboot** (`kern.boottime` changed *and* interface counters went down): all
+  process counters restarted; drop prior per-process state and treat all as new.
 - **First-ever run:** record baseline, emit no deltas (avoids attributing
   lifetime totals to one 2-minute window).
 - **Sleep/wake:** launchd does not fire while asleep, so there is no catch-up
@@ -129,6 +137,25 @@ for the **total**. `unattributed = interface delta − Σ per-app deltas`, clamp
 at 0 and recorded, so the daily total is right even when processes exit
 unobserved or nettop misses traffic.
 
+**Per-app numbers cover the same interfaces.** nettop runs with
+`-t wifi -t wired` (verified on macOS: the filter works; 64 rows vs 101
+unfiltered), so per-app counters include only sockets on physical interfaces.
+That excludes loopback (dev servers, Docker, local proxies), and traffic inside
+a VPN tunnel is *not* counted for the app that sent it: it appears once, as the
+encrypted traffic of the VPN client process, which `rules.yaml` classes as
+`work` (consistent with "VPN is work"). Hence Σ per-app (and every per-class
+sum) is **bounded by the interface total**; the remainder is `unattributed`.
+Because the clamp would otherwise hide a violation, `netmon report` adds a
+`warnings` entry (and a `WARNING` on summary line 1) when Σ apps exceeds the
+total by more than 5 % for the day.
+
+**Counter checks.** A `kern.boottime` change only counts as a reboot if a
+physical interface's counter also went *down* (a real reboot resets `netstat`
+counters; a clock step does not). Otherwise it is logged as `clock_step`,
+the stored boot time is updated, and nothing is re-booked. Interface counters
+that drop with an unchanged boot time are a reset: delta = current, per
+interface.
+
 ### Network tag
 
 Each sample row stores the gateway MAC (nullable when offline) and a derived
@@ -146,7 +173,7 @@ by summing deltas by that tag.
 `Nice`. launchd never overlaps instances of one job. Plist is written by the
 builder later (not part of this docs-only step).
 
-### Budgets — enforced by a test
+### Budgets — enforced by `scripts/check.sh`
 
 Measured with `/usr/bin/time -l` on the **release** binary, netmon itself
 (excluding the nettop child):
@@ -259,8 +286,16 @@ friendly schema (UTC `ts` + local `day`, `schema_version`, SQL views,
   unplugged adapter never looks like a counter reset. Gateway MAC: first
   physical interface that carried traffic (`en0` first) via
   `route -n get -ifscope enX default` then `arp -n`.
-- **Journal:** default rollback journal, `synchronous=FULL`, `cache_size`
-  256 KiB: no WAL side files, atomic per sample.
+- **Journal:** WAL, `synchronous=NORMAL`, `cache_size` 16 KiB. WAL so a
+  paused reader (`netmon query | less`) can never block the sampler. Atomic per
+  sample; a power loss can lose only the last commit.
+- **Whole-run deadline:** `sample` exits non-zero with a `timeout` log line
+  after 60 s, whatever it is stuck on (launchd would never start a second
+  run). The child runner keeps its deadline until the child is reaped, not just
+  until stdout closes.
+- **Maintenance** (rollup, archive) records its attempt day whatever the
+  outcome (once a day, logged once); the archive merges into an existing
+  `<year>-*.csv` (existing rows win) and never overwrites it.
 - **Boot detection:** `kern.boottime` changes of <= 30 s are treated as clock
   adjustment, not a reboot (a false reboot would book lifetime counters as one
   window's traffic).
