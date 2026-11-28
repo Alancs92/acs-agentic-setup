@@ -1,6 +1,7 @@
 //! netmon: run-and-exit per-app network usage sampler. See `design.md`.
 
 pub mod delta;
+pub mod errlog;
 pub mod json;
 pub mod netinfo;
 pub mod nettop;

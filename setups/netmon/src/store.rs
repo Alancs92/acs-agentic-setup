@@ -20,13 +20,30 @@ use crate::rules::Rules;
 
 pub type Result<T> = rusqlite::Result<T>;
 
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 /// Raw 2-minute deltas are kept this long, then rolled up per (day, app, home).
 pub const RETENTION_DAYS: i64 = 35;
 /// Daily rollups of years that ended more than this long ago are archived.
 pub const ARCHIVE_YEARS: i64 = 5;
 
-const SCHEMA: &str = "
+/// Migrations, applied in order to a DB whose `user_version` is below the
+/// step's version (a fresh DB starts at 0 and runs them all). Each step is
+/// idempotent (`IF NOT EXISTS`) and runs in one transaction with the version
+/// bump. Never edit a released step: append a new one and raise `SCHEMA_VERSION`.
+const MIGRATIONS: &[(i64, &str)] = &[(1, SCHEMA_V1), (2, MIGRATION_V2)];
+
+/// v2: skipped-sample / gap tracking.
+const MIGRATION_V2: &str = "
+CREATE TABLE IF NOT EXISTS sample_failures(
+  id INTEGER PRIMARY KEY,
+  ts INTEGER NOT NULL,            -- UTC epoch seconds of the failed attempt
+  day TEXT NOT NULL,              -- local calendar date YYYY-MM-DD
+  kind TEXT NOT NULL,             -- timeout|exit|spawn|io|netinfo|db
+  detail TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS sample_failures_day ON sample_failures(day);
+";
+
+const SCHEMA_V1: &str = "
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS samples(
   id INTEGER PRIMARY KEY,
@@ -97,6 +114,46 @@ pub struct Store {
     conn: Connection,
 }
 
+/// Sampling gaps over a date range (see `Store::gaps`).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Gaps {
+    pub failed_samples: u64,
+    /// `(kind, count)`, sorted by kind.
+    pub by_kind: Vec<(String, u64)>,
+    pub longest_interval_s: Option<i64>,
+}
+
+impl Gaps {
+    /// `"timeout 2, exit 1"`.
+    pub fn kinds_text(&self) -> String {
+        let v: Vec<String> = self
+            .by_kind
+            .iter()
+            .map(|(k, n)| format!("{k} {n}"))
+            .collect();
+        v.join(", ")
+    }
+
+    /// `{"failed_samples":N,"by_kind":{..},"longest_interval_s":X|null}`.
+    pub fn push_json(&self, o: &mut String) {
+        o.push_str(&format!(
+            "{{\"failed_samples\":{},\"by_kind\":{{",
+            self.failed_samples
+        ));
+        for (n, (k, c)) in self.by_kind.iter().enumerate() {
+            if n > 0 {
+                o.push(',');
+            }
+            crate::json::push_str(o, k);
+            o.push_str(&format!(":{c}"));
+        }
+        match self.longest_interval_s {
+            Some(s) => o.push_str(&format!("}},\"longest_interval_s\":{s}}}")),
+            None => o.push_str("},\"longest_interval_s\":null}"),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Meta {
     pub boot_time: Option<i64>,
@@ -128,24 +185,68 @@ impl Store {
         let conn = Connection::open(path)?;
         let _ = paths::tighten_file(path);
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        // Small page cache: the working set of a sample run is a few pages.
-        conn.pragma_update(None, "cache_size", -256)?;
+        // Tiny page cache (16 KiB): the working set of a sample run is a few
+        // pages, and in the daily maintenance run it is the dominant RSS cost
+        // (measured: -256 -> 4.6 MB peak, -16 -> 4.4 MB; steady-state unchanged).
+        conn.pragma_update(None, "cache_size", -16)?;
         let ver: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
         if ver > SCHEMA_VERSION {
             return Err(rusqlite::Error::InvalidParameterName(format!(
                 "database schema version {ver} is newer than this netmon ({SCHEMA_VERSION})"
             )));
         }
-        if ver < SCHEMA_VERSION {
-            conn.execute_batch(SCHEMA)?;
-            conn.execute(
+        for (v, sql) in MIGRATIONS.iter().filter(|(v, _)| *v > ver) {
+            // DDL is transactional in SQLite: a crash mid-migration leaves the
+            // previous version intact and the step simply runs again.
+            let tx = conn.unchecked_transaction()?;
+            tx.execute_batch(sql)?;
+            tx.execute(
                 "INSERT INTO meta(key,value) VALUES('schema_version',?1)
                  ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                [SCHEMA_VERSION],
+                [v],
             )?;
-            conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            tx.pragma_update(None, "user_version", v)?;
+            tx.commit()?;
         }
         Ok(Store { conn })
+    }
+
+    /// Record a skipped sample in its own tiny transaction (the failed sample
+    /// itself wrote nothing). `detail` is truncated to keep rows small.
+    pub fn record_failure(&mut self, ts: i64, kind: &str, detail: &str) -> Result<()> {
+        let detail: String = detail.chars().take(200).collect();
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
+            "INSERT INTO sample_failures(ts,day,kind,detail)
+             VALUES(?1, date(?1,'unixepoch','localtime'), ?2, ?3)",
+            params![ts, kind, detail],
+        )?;
+        tx.commit()
+    }
+
+    /// Failures and the longest sampling interval for local days
+    /// `from..=to`. `longest_interval_s` comes from raw samples only (it is
+    /// `None` for days already rolled up, or with no sample).
+    pub fn gaps(&self, from: &str, to: &str) -> Result<Gaps> {
+        let mut g = Gaps::default();
+        let mut q = self.conn.prepare(
+            "SELECT kind, COUNT(*) FROM sample_failures
+              WHERE day BETWEEN ?1 AND ?2 GROUP BY kind ORDER BY kind",
+        )?;
+        let mut rows = q.query([from, to])?;
+        while let Some(r) = rows.next()? {
+            let n = r.get::<_, i64>(1)?.max(0) as u64;
+            g.failed_samples += n;
+            g.by_kind.push((r.get(0)?, n));
+        }
+        g.longest_interval_s = self.conn.query_row(
+            "SELECT MAX(interval_s) FROM samples WHERE day BETWEEN ?1 AND ?2",
+            [from, to],
+            |r| r.get(0),
+        )?;
+        Ok(g)
     }
 
     pub fn conn(&self) -> &Connection {
@@ -281,41 +382,59 @@ impl Store {
     /// Sum raw rows of days `< cutoff_day` into the rollup tables, then delete
     /// them. Idempotent; totals are preserved. Returns raw samples rolled up.
     pub fn rollup_before(&mut self, cutoff_day: &str) -> Result<usize> {
-        // One transaction for the whole backlog: all-or-nothing. (Measured:
-        // chunking it saved no memory and cost 5x wall time in fsyncs.)
-        let max_id = i64::MAX;
+        // One transaction for the whole backlog (all-or-nothing; separate
+        // transactions cost 5x wall time in fsyncs and saved no memory), but
+        // one DAY at a time inside it, so each statement sorts and collects
+        // delete keys for a single day's rows rather than the whole backlog.
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute(
-            "INSERT INTO daily_rollup(day,proc,home,bytes_in,bytes_out)
-             SELECT s.day, a.proc, s.home, SUM(a.bytes_in), SUM(a.bytes_out)
-               FROM app_deltas a JOIN samples s ON s.id=a.sample_id
-              WHERE s.day < ?1 AND s.id <= ?2 GROUP BY s.day, a.proc, s.home
-             ON CONFLICT(day,proc,home) DO UPDATE SET
-               bytes_in=bytes_in+excluded.bytes_in, bytes_out=bytes_out+excluded.bytes_out",
-            params![cutoff_day, max_id],
-        )?;
-        tx.execute(
-            "INSERT INTO daily_totals(day,home,iface_in,iface_out,vpn_in,vpn_out,unattr_in,unattr_out,samples,seconds)
-             SELECT day, home, SUM(iface_in), SUM(iface_out), SUM(vpn_in), SUM(vpn_out),
-                    SUM(unattr_in), SUM(unattr_out), COUNT(*), SUM(interval_s)
-               FROM samples WHERE day < ?1 AND id <= ?2 GROUP BY day, home
-             ON CONFLICT(day,home) DO UPDATE SET
-               iface_in=iface_in+excluded.iface_in, iface_out=iface_out+excluded.iface_out,
-               vpn_in=vpn_in+excluded.vpn_in, vpn_out=vpn_out+excluded.vpn_out,
-               unattr_in=unattr_in+excluded.unattr_in, unattr_out=unattr_out+excluded.unattr_out,
-               samples=samples+excluded.samples, seconds=seconds+excluded.seconds",
-            params![cutoff_day, max_id],
-        )?;
-        tx.execute(
-            "DELETE FROM app_deltas WHERE sample_id IN (SELECT id FROM samples WHERE day < ?1 AND id <= ?2)",
-            params![cutoff_day, max_id],
-        )?;
-        let n = tx.execute(
-            "DELETE FROM samples WHERE day < ?1 AND id <= ?2",
-            params![cutoff_day, max_id],
-        )?;
+        let days: Vec<String> = {
+            let mut q =
+                tx.prepare("SELECT DISTINCT day FROM samples WHERE day < ?1 ORDER BY day")?;
+            let v = q
+                .query_map([cutoff_day], |r| r.get(0))?
+                .collect::<Result<_>>()?;
+            v
+        };
+        let mut n = 0;
+        for day in &days {
+            tx.execute(
+                "INSERT INTO daily_rollup(day,proc,home,bytes_in,bytes_out)
+                 SELECT s.day, a.proc, s.home, SUM(a.bytes_in), SUM(a.bytes_out)
+                   FROM app_deltas a JOIN samples s ON s.id=a.sample_id
+                  WHERE s.day = ?1 GROUP BY a.proc, s.home
+                 ON CONFLICT(day,proc,home) DO UPDATE SET
+                   bytes_in=bytes_in+excluded.bytes_in, bytes_out=bytes_out+excluded.bytes_out",
+                [day],
+            )?;
+            tx.execute(
+                "INSERT INTO daily_totals(day,home,iface_in,iface_out,vpn_in,vpn_out,unattr_in,unattr_out,samples,seconds)
+                 SELECT day, home, SUM(iface_in), SUM(iface_out), SUM(vpn_in), SUM(vpn_out),
+                        SUM(unattr_in), SUM(unattr_out), COUNT(*), SUM(interval_s)
+                   FROM samples WHERE day = ?1 GROUP BY home
+                 ON CONFLICT(day,home) DO UPDATE SET
+                   iface_in=iface_in+excluded.iface_in, iface_out=iface_out+excluded.iface_out,
+                   vpn_in=vpn_in+excluded.vpn_in, vpn_out=vpn_out+excluded.vpn_out,
+                   unattr_in=unattr_in+excluded.unattr_in, unattr_out=unattr_out+excluded.unattr_out,
+                   samples=samples+excluded.samples, seconds=seconds+excluded.seconds",
+                [day],
+            )?;
+            // One indexed prefix delete per sample: no ephemeral key set.
+            let ids: Vec<i64> = {
+                let mut q = tx.prepare("SELECT id FROM samples WHERE day = ?1")?;
+                let v = q.query_map([day], |r| r.get(0))?.collect::<Result<_>>()?;
+                v
+            };
+            let mut del = tx.prepare("DELETE FROM app_deltas WHERE sample_id = ?1")?;
+            for id in ids {
+                del.execute([id])?;
+            }
+            drop(del);
+            n += tx.execute("DELETE FROM samples WHERE day = ?1", [day])?;
+        }
+        // Failure rows have no rollup: they follow the raw retention.
+        tx.execute("DELETE FROM sample_failures WHERE day < ?1", [cutoff_day])?;
         tx.commit()?;
         Ok(n)
     }
@@ -611,6 +730,84 @@ mod tests {
             .pragma_update(None, "user_version", 99)
             .unwrap();
         assert!(Store::open(&p).is_err());
+    }
+
+    #[test]
+    fn v1_database_migrates_forward_keeping_its_data() {
+        let t = TempDir::new("store-migrate");
+        let p = t.path().join("netmon.db");
+        {
+            // A genuine v1 file: only the v1 schema, user_version 1.
+            let c = Connection::open(&p).unwrap();
+            c.execute_batch(SCHEMA_V1).unwrap();
+            c.execute("INSERT INTO meta(key,value) VALUES('schema_version',1)", [])
+                .unwrap();
+            c.execute(
+                "INSERT INTO samples(ts,day,interval_s,iface_in,iface_out,vpn_in,vpn_out,unattr_in,unattr_out,home)
+                 VALUES(1,'2026-01-01',120,5,6,0,0,0,0,1)",
+                [],
+            )
+            .unwrap();
+            c.pragma_update(None, "user_version", 1).unwrap();
+        }
+        let mut s = Store::open(&p).unwrap();
+        let v: i64 = s
+            .conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 2);
+        assert_eq!(s.meta_i64("schema_version").unwrap(), Some(2));
+        s.record_failure(100, "timeout", "x").unwrap(); // new table exists
+        let n: i64 = s
+            .conn
+            .query_row("SELECT iface_in FROM samples", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 5, "existing rows survive");
+    }
+
+    #[test]
+    fn failures_are_recorded_summarised_and_follow_retention() {
+        let t = TempDir::new("store-failures");
+        let mut s = open(&t);
+        let day = |s: &Store, ts: i64| -> String {
+            s.conn
+                .query_row("SELECT date(?1,'unixepoch','localtime')", [ts], |r| {
+                    r.get(0)
+                })
+                .unwrap()
+        };
+        const T: i64 = 1_700_000_000;
+        put(&mut s, T, true, &[("a", 1, 1)], 2, 0);
+        put(&mut s, T + 120, true, &[("a", 1, 1)], 2, 0);
+        s.record_failure(T + 200, "timeout", "nettop: timed out")
+            .unwrap();
+        s.record_failure(T + 300, "timeout", &"d".repeat(1000))
+            .unwrap();
+        s.record_failure(T + 400, "exit", "status 3").unwrap();
+        let d = day(&s, T);
+        let g = s.gaps(&d, &d).unwrap();
+        assert_eq!(g.failed_samples, 3);
+        assert_eq!(g.by_kind, vec![("exit".into(), 1), ("timeout".into(), 2)]);
+        assert_eq!(g.longest_interval_s, Some(120));
+        assert_eq!(g.kinds_text(), "exit 1, timeout 2");
+        let len: i64 = s
+            .conn
+            .query_row("SELECT MAX(length(detail)) FROM sample_failures", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(len, 200, "detail is capped");
+        let none = s.gaps("1999-01-01", "1999-01-02").unwrap();
+        assert_eq!(none, Gaps::default());
+        let mut j = String::new();
+        g.push_json(&mut j);
+        assert_eq!(
+            j,
+            "{\"failed_samples\":3,\"by_kind\":{\"exit\":1,\"timeout\":2},\"longest_interval_s\":120}"
+        );
+        // same 35-day retention as raw rows
+        s.rollup_before("2999-01-01").unwrap();
+        assert_eq!(s.gaps(&d, &d).unwrap().failed_samples, 0);
     }
 
     #[test]

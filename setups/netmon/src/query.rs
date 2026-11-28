@@ -144,6 +144,9 @@ fn sql(args: &Args) -> String {
 pub fn run<W: Write>(store: &Store, args: &Args, out: &mut W) -> Result<(), String> {
     let e = |e: std::io::Error| e.to_string();
     let n = args.group.len();
+    let gaps = store
+        .gaps(&args.from, &args.to)
+        .map_err(|e| e.to_string())?;
     let mut q = store
         .conn()
         .prepare(&sql(args))
@@ -162,7 +165,9 @@ pub fn run<W: Write>(store: &Store, args: &Args, out: &mut W) -> Result<(), Stri
                 }
                 json::push_str(&mut head, d.name());
             }
-            head.push_str("],\"rows\":[");
+            head.push_str("],\"gaps\":");
+            gaps.push_json(&mut head);
+            head.push_str(",\"rows\":[");
             out.write_all(head.as_bytes()).map_err(e)?;
         }
         Format::Csv => {
@@ -208,6 +213,13 @@ pub fn run<W: Write>(store: &Store, args: &Args, out: &mut W) -> Result<(), Stri
     }
     if args.format == Format::Json {
         out.write_all(b"]}\n").map_err(e)?;
+    } else if gaps.failed_samples > 0 {
+        // CSV has no room for metadata; keep stdout clean and say it on stderr.
+        eprintln!(
+            "netmon: {} failed samples in range ({})",
+            gaps.failed_samples,
+            gaps.kinds_text()
+        );
     }
     Ok(())
 }
@@ -392,8 +404,26 @@ mod tests {
         let (_t, s) = fixture();
         let out = run_str(&s, &args(&s, &[Dim::Class], Format::Json));
         assert!(out.starts_with("{\"schema_version\":1,\"from\":\""));
-        assert!(out.contains("\"group_by\":[\"class\"],\"rows\":[{\"class\":\"ask\",\"bytes_in\":3,\"bytes_out\":3,\"bytes\":6},{\"class\":\"personal\""));
+        assert!(out.contains("\"group_by\":[\"class\"],\"gaps\":{\"failed_samples\":0,\"by_kind\":{},\"longest_interval_s\":120},\"rows\":[{\"class\":\"ask\",\"bytes_in\":3,\"bytes_out\":3,\"bytes\":6},{\"class\":\"personal\""));
         assert!(out.ends_with("]}\n"));
+    }
+
+    #[test]
+    fn json_surfaces_failures_in_the_range() {
+        let (_t, mut s) = fixture();
+        s.record_failure(T0 + 10, "timeout", "t").unwrap();
+        s.record_failure(T0 + DAY + 10, "exit", "e").unwrap();
+        let out = run_str(&s, &args(&s, &[Dim::Day], Format::Json));
+        assert!(out.contains(
+            "\"gaps\":{\"failed_samples\":2,\"by_kind\":{\"exit\":1,\"timeout\":1},\"longest_interval_s\":120}"
+        ), "{out}");
+        // a one-day range only sees that day's failure
+        let mut a = args(&s, &[Dim::Day], Format::Json);
+        a.to = a.from.clone();
+        assert!(run_str(&s, &a).contains("\"failed_samples\":1,\"by_kind\":{\"timeout\":1}"));
+        // CSV stdout is untouched
+        let csv = run_str(&s, &args(&s, &[Dim::Day], Format::Csv));
+        assert!(csv.starts_with("day,bytes_in,bytes_out,bytes\n") && !csv.contains("gaps"));
     }
 
     #[test]

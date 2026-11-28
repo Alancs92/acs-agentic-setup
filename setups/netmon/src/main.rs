@@ -10,8 +10,8 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let r = match args.first().map(String::as_str) {
         Some("sample") => cmd_sample(&args[1..]),
-        Some("report") => cmd_report(&args[1..]),
-        Some("query") => cmd_query(&args[1..]),
+        Some("report") => logged("report", cmd_report(&args[1..])),
+        Some("query") => logged("query", cmd_query(&args[1..])),
         Some("--help" | "-h" | "help") => {
             print!("{}", usage());
             Ok(())
@@ -69,9 +69,20 @@ fn cmd_sample(args: &[String]) -> Result<(), String> {
                 &dir.join(LAST_ERROR),
                 format!("{} {e}\n", sample::now()).as_bytes(),
             );
-            Err(e)
+            Err(e.to_string())
         }
     }
+}
+
+/// Run `report`/`query`; failures also go to the capped error log (launchd
+/// would otherwise drop stderr). Logging never changes the outcome.
+fn logged(sub: &str, r: Result<(), String>) -> Result<(), String> {
+    if let Err(e) = &r {
+        if let Ok(dir) = paths::data_dir() {
+            netmon::errlog::append(&dir, sub, "error", e);
+        }
+    }
+    r
 }
 
 fn cmd_report(args: &[String]) -> Result<(), String> {

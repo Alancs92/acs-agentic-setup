@@ -140,6 +140,30 @@ fn timeout_run_leaves_the_db_unchanged() {
 }
 
 #[test]
+fn helper_timeout_is_a_recorded_netinfo_failure() {
+    let f = Fake::new("helper-timeout");
+    f.nettop(&[("a.10", 100, 200)]);
+    f.netstat((1000, 2000), (0, 0));
+    run_ok(&f);
+    f.flag("hang_netstat", true);
+    let t = std::time::Instant::now();
+    let o = f
+        .cmd(netmon())
+        .arg("sample")
+        .env("NETMON_HELPER_TIMEOUT_MS", "300")
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+    assert!(t.elapsed() < std::time::Duration::from_secs(10));
+    assert_eq!(count(&f, "samples"), 0);
+    let kind: String = f
+        .db()
+        .query_row("SELECT kind FROM sample_failures", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(kind, "netinfo");
+}
+
+#[test]
 fn failed_run_records_last_error() {
     let f = Fake::new("fail");
     f.nettop(&[("a.10", 1, 1)]);
@@ -155,6 +179,131 @@ fn failed_run_records_last_error() {
         .success());
     assert!(f.data.join("last-error.txt").exists());
     assert_eq!(count(&f, "samples"), 0);
+}
+
+#[test]
+fn failures_are_logged_recorded_and_surfaced_in_report_and_query() {
+    use std::os::unix::fs::PermissionsExt;
+    let f = Fake::new("gaps");
+    f.nettop(&[("a.10", 100, 200)]);
+    f.netstat((1000, 2000), (0, 0));
+    run_ok(&f);
+    f.flag("hang", true);
+    for _ in 0..2 {
+        let o = f
+            .cmd(netmon())
+            .arg("sample")
+            .env("NETMON_NETTOP_TIMEOUT_MS", "300")
+            .output()
+            .unwrap();
+        assert!(!o.status.success());
+    }
+    f.flag("hang", false);
+    f.flag("fail", true);
+    assert!(!f
+        .cmd(netmon())
+        .arg("sample")
+        .output()
+        .unwrap()
+        .status
+        .success());
+    f.flag("fail", false);
+
+    // 1. the capped error log has one line per failure, 0600
+    let log = f.data.join("netmon.log");
+    let text = std::fs::read_to_string(&log).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    assert!(
+        lines[0].ends_with("sample timeout nettop: timed out"),
+        "{text}"
+    );
+    assert!(lines[2].contains(" sample exit "), "{text}");
+    assert_eq!(
+        std::fs::metadata(&log).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+
+    // 2. failures are rows, and still no partial sample data
+    assert_eq!(count(&f, "sample_failures"), 3);
+    assert_eq!(count(&f, "samples"), 0);
+
+    // 3. a good sample afterwards; report and query show the gap
+    f.nettop(&[("a.10", 150, 260)]);
+    f.netstat((1200, 2300), (0, 0));
+    run_ok(&f);
+    let o = f.cmd(netmon()).arg("report").output().unwrap();
+    assert!(o.status.success());
+    let out = String::from_utf8(o.stdout).unwrap();
+    assert_eq!(out.lines().count(), 3, "{out}");
+    assert!(
+        out.lines()
+            .next()
+            .unwrap()
+            .contains("3 FAILED (exit 1, timeout 2)"),
+        "{out}"
+    );
+    let rep = std::fs::read_dir(f.data.join("reports"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let rep = std::fs::read_to_string(rep).unwrap();
+    assert!(rep.contains("\"gaps\":{\"failed_samples\":3,\"by_kind\":{\"exit\":1,\"timeout\":2},\"longest_interval_s\":"), "{rep}");
+    let o = f
+        .cmd(netmon())
+        .args([
+            "query",
+            "--from",
+            "2000-01-01",
+            "--to",
+            "2999-12-31",
+            "--group-by",
+            "day",
+        ])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8(o.stdout)
+        .unwrap()
+        .contains("\"failed_samples\":3"));
+}
+
+#[test]
+fn report_and_query_errors_are_logged() {
+    let f = Fake::new("cmd-errors");
+    f.nettop(&[("a.10", 1, 1)]);
+    f.netstat((1, 1), (0, 0));
+    run_ok(&f); // creates the data dir
+    let o = f
+        .cmd(netmon())
+        .args(["report", "--date", "nope"])
+        .output()
+        .unwrap();
+    assert!(!o.status.success());
+    let o = f.cmd(netmon()).args(["query", "--bogus"]).output().unwrap();
+    assert!(!o.status.success());
+    let text = std::fs::read_to_string(f.data.join("netmon.log")).unwrap();
+    assert!(
+        text.contains(" report error `nope` is not a YYYY-MM-DD date"),
+        "{text}"
+    );
+    assert!(
+        text.contains(" query error unknown argument `--bogus`"),
+        "{text}"
+    );
+}
+
+#[test]
+fn padded_process_names_are_stored_trimmed() {
+    let f = Fake::new("trim");
+    f.nettop(&[("Microsoft Edge .10", 1, 1)]);
+    f.netstat((1, 1), (0, 0));
+    run_ok(&f);
+    f.nettop(&[("Microsoft Edge .10", 11, 21)]);
+    f.netstat((50, 50), (0, 0));
+    run_ok(&f);
+    assert_eq!(delta(&f, "Microsoft Edge"), (10, 20));
 }
 
 #[test]

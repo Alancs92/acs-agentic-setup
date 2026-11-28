@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::json;
 use crate::paths;
 use crate::rules::{Class, Rules};
-use crate::store::Store;
+use crate::store::{Gaps, Store};
 
 pub const REPORT_SCHEMA_VERSION: u32 = 1;
 
@@ -47,6 +47,8 @@ pub struct Report {
     pub classes: [Bytes; 3],
     /// Sorted by total bytes, largest first.
     pub apps: Vec<AppUse>,
+    /// Skipped samples and the longest sampling interval that day.
+    pub gaps: Gaps,
 }
 
 fn class_idx(c: Class) -> usize {
@@ -92,6 +94,7 @@ pub fn build(store: &Store, rules: &Rules, date: &str) -> rusqlite::Result<Repor
         unattributed: Bytes::default(),
         classes: [Bytes::default(); 3],
         apps: Vec::new(),
+        gaps: store.gaps(date, date)?,
     };
     let c = store.conn();
     let mut q = c.prepare(
@@ -173,6 +176,8 @@ pub fn to_json(r: &Report) -> String {
     push_bytes(&mut o, r.vpn);
     o.push_str(",\"unattributed\":");
     push_bytes(&mut o, r.unattributed);
+    o.push_str(",\"gaps\":");
+    r.gaps.push_json(&mut o);
     o.push_str(",\"classes\":{");
     for (n, c) in CLASSES.iter().enumerate() {
         if n > 0 {
@@ -203,7 +208,7 @@ pub fn to_json(r: &Report) -> String {
 /// Exactly three lines: total, home vs elsewhere, top apps by class.
 /// (Unattributed bytes are called out on line 1 and in the JSON.)
 pub fn summary(r: &Report) -> String {
-    let l1 = format!(
+    let mut l1 = format!(
         "{}: {:.2} GB total (in {:.2} / out {:.2}), {:.2} GB unattributed, {} samples",
         r.date,
         gb(r.total.total()),
@@ -212,6 +217,13 @@ pub fn summary(r: &Report) -> String {
         gb(r.unattributed.total()),
         r.samples
     );
+    if r.gaps.failed_samples > 0 {
+        l1.push_str(&format!(
+            ", {} FAILED ({})",
+            r.gaps.failed_samples,
+            r.gaps.kinds_text()
+        ));
+    }
     let l2 = format!(
         "home {:.2} GB | elsewhere {:.2} GB | vpn hint {:.2} GB",
         gb(r.home.total()),
@@ -309,7 +321,47 @@ mod tests {
         let (_t, mut s, day) = setup();
         let raw = build(&s, &rules(), &day).unwrap();
         s.rollup_before("2999-01-01").unwrap();
-        assert_eq!(build(&s, &rules(), &day).unwrap(), raw);
+        // Gaps are raw-retention only; everything else is identical.
+        let mut rolled = build(&s, &rules(), &day).unwrap();
+        assert_eq!(rolled.gaps.longest_interval_s, None);
+        rolled.gaps = raw.gaps.clone();
+        assert_eq!(rolled, raw);
+    }
+
+    #[test]
+    fn gaps_are_reported_in_json_and_summary_only_when_present() {
+        let (_t, mut s, day) = setup();
+        let clean = build(&s, &rules(), &day).unwrap();
+        assert_eq!(clean.gaps.failed_samples, 0);
+        assert!(to_json(&clean)
+            .contains("\"gaps\":{\"failed_samples\":0,\"by_kind\":{},\"longest_interval_s\":120}"));
+        assert!(!summary(&clean).contains("FAILED"));
+
+        s.record_failure(T0 + 130, "timeout", "t").unwrap();
+        s.record_failure(T0 + 250, "timeout", "t").unwrap();
+        s.record_failure(T0 + 370, "netinfo", "n").unwrap();
+        let r = build(&s, &rules(), &day).unwrap();
+        assert!(to_json(&r).contains(
+            "\"gaps\":{\"failed_samples\":3,\"by_kind\":{\"netinfo\":1,\"timeout\":2},\"longest_interval_s\":120}"
+        ));
+        let sm = summary(&r);
+        assert_eq!(sm.lines().count(), 3);
+        assert!(
+            sm.lines()
+                .next()
+                .unwrap()
+                .contains("3 FAILED (netinfo 1, timeout 2)"),
+            "{sm}"
+        );
+    }
+
+    #[test]
+    fn empty_day_gaps_have_null_longest_interval() {
+        let (_t, s, _) = setup();
+        let j = to_json(&build(&s, &rules(), "1999-01-01").unwrap());
+        assert!(j.contains(
+            "\"gaps\":{\"failed_samples\":0,\"by_kind\":{},\"longest_interval_s\":null}"
+        ));
     }
 
     #[test]

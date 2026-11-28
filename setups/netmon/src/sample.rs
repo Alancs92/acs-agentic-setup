@@ -5,8 +5,9 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::delta::{iface_deltas, Engine};
+use crate::errlog;
 use crate::netinfo;
-use crate::nettop::{nettop_command, nettop_timeout, run_nettop, Row};
+use crate::nettop::{nettop_command, nettop_timeout, run_nettop, Row, RunError};
 use crate::paths;
 use crate::rules::{Rules, DEFAULT_RULES};
 use crate::store::{SampleRow, Store, WriteArgs};
@@ -75,10 +76,70 @@ pub fn dry(mut out: impl FnMut(&Row)) -> Result<usize, String> {
     Ok(n)
 }
 
-pub fn run(dir: &Path, ts: i64) -> Result<Outcome, String> {
-    ensure_layout(dir).map_err(|e| format!("data dir: {e}"))?;
-    let mut store = Store::open(&dir.join(DB_FILE)).map_err(|e| format!("db: {e}"))?;
-    let (prev, meta) = store.load_state().map_err(|e| format!("db: {e}"))?;
+/// Why a sample was skipped. `kind` is one of `timeout|exit|spawn|io|netinfo|db`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Failure {
+    pub kind: &'static str,
+    pub msg: String,
+}
+
+impl Failure {
+    fn new(kind: &'static str, msg: impl Into<String>) -> Failure {
+        Failure {
+            kind,
+            msg: msg.into(),
+        }
+    }
+    fn db(what: &str, e: impl std::fmt::Display) -> Failure {
+        Failure::new("db", format!("{what}: {e}"))
+    }
+}
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.msg)
+    }
+}
+
+impl From<RunError> for Failure {
+    fn from(e: RunError) -> Failure {
+        let kind = match e {
+            RunError::Spawn(_) => "spawn",
+            RunError::Io(_) => "io",
+            RunError::Timeout => "timeout",
+            RunError::Exit(_) => "exit",
+        };
+        Failure::new(kind, format!("nettop: {e}"))
+    }
+}
+
+/// Take one sample. On failure nothing partial is written; once the store is
+/// open the skipped attempt is recorded (own tiny transaction) so reports can
+/// show the gap, and every failure is appended to the capped error log.
+pub fn run(dir: &Path, ts: i64) -> Result<Outcome, Failure> {
+    let r = run_inner(dir, ts);
+    if let Err(f) = &r {
+        errlog::append_at(dir, ts, "sample", f.kind, &f.msg);
+    }
+    r
+}
+
+fn run_inner(dir: &Path, ts: i64) -> Result<Outcome, Failure> {
+    ensure_layout(dir).map_err(|e| Failure::new("io", format!("data dir: {e}")))?;
+    let mut store = Store::open(&dir.join(DB_FILE)).map_err(|e| Failure::db("db", e))?;
+    match take(dir, ts, &mut store) {
+        Ok(o) => Ok(o),
+        Err(f) => {
+            if let Err(e) = store.record_failure(ts, f.kind, &f.msg) {
+                errlog::append_at(dir, ts, "sample", "db", &format!("record failure: {e}"));
+            }
+            Err(f)
+        }
+    }
+}
+
+fn take(dir: &Path, ts: i64, store: &mut Store) -> Result<Outcome, Failure> {
+    let (prev, meta) = store.load_state().map_err(|e| Failure::db("db", e))?;
 
     let boot = netinfo::boot_time();
     let boot_changed =
@@ -90,11 +151,11 @@ pub fn run(dir: &Path, ts: i64) -> Result<Outcome, String> {
     run_nettop(&mut nettop_command(), nettop_timeout(), |r| {
         processes += 1;
         engine.feed(r);
-    })
-    .map_err(|e| format!("nettop: {e}"))?; // no write on timeout/failure
+    })?; // no write on timeout/failure
     let (apps, procs) = engine.finish();
 
-    let ifs = netinfo::read_interfaces().map_err(|e| format!("netstat: {e}"))?;
+    let ifs =
+        netinfo::read_interfaces().map_err(|e| Failure::new("netinfo", format!("netstat: {e}")))?;
     let (idelta, ifaces) = iface_deltas(&prev, &ifs, boot_changed);
     let gateway = netinfo::gateway_mac(&ifs);
     let home = gateway
@@ -128,12 +189,13 @@ pub fn run(dir: &Path, ts: i64) -> Result<Outcome, String> {
             procs: &procs,
             ifaces: &ifaces,
         })
-        .map_err(|e| format!("db write: {e}"))?;
+        .map_err(|e| Failure::db("db write", e))?;
 
     // Daily housekeeping (rollup, archive). The sample is already committed,
     // so a failure here is reported but does not fail the run.
     if let Err(e) = store.maintain(&dir.join("archive")) {
         eprintln!("netmon: maintenance failed: {e}");
+        errlog::append_at(dir, ts, "sample", "maint", &e.to_string());
     }
     Ok(Outcome {
         processes,

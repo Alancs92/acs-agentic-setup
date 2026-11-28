@@ -35,7 +35,12 @@ impl Fake {
                             if [ -f \"$NETMON_FAKE/fail\" ]; then exit 1; fi\n\
                             exec cat \"$NETMON_FAKE/nettop.txt\"",
         );
-        for n in ["netstat", "route", "arp"] {
+        f.script(
+            "netstat",
+            "if [ -f \"$NETMON_FAKE/hang_netstat\" ]; then exec sleep 30; fi\n\
+                            exec cat \"$NETMON_FAKE/netstat.txt\"",
+        );
+        for n in ["route", "arp"] {
             f.script(n, &format!("exec cat \"$NETMON_FAKE/{n}.txt\""));
         }
         f.script("sysctl", "exec cat \"$NETMON_FAKE/boot.txt\"");
@@ -106,7 +111,10 @@ impl Fake {
             .env("NETMON_NETSTAT", self.bin.join("netstat"))
             .env("NETMON_ROUTE", self.bin.join("route"))
             .env("NETMON_ARP", self.bin.join("arp"))
-            .env("NETMON_SYSCTL", self.bin.join("sysctl"));
+            .env("NETMON_SYSCTL", self.bin.join("sysctl"))
+            // Fake helpers are `sh` scripts: generous caps so a loaded test
+            // machine cannot turn a slow spawn into a `netstat: timed out`.
+            .env("NETMON_HELPER_TIMEOUT_MS", "60000");
         c
     }
 

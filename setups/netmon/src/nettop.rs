@@ -28,6 +28,9 @@ pub fn parse_line(line: &str) -> Option<Row> {
     let inn = it.next()?;
     let name_pid = it.next()?;
     let (name, pid) = name_pid.rsplit_once('.')?;
+    // nettop pads some names ("Microsoft Edge "); trim here so storage, rules,
+    // reports and the (name, pid) delta key all see the clean name.
+    let name = name.trim();
     if name.is_empty() {
         return None;
     }
@@ -223,9 +226,17 @@ mod tests {
         #[test]
         fn names_with_spaces_and_commas() {
             let r = parse_line("Microsoft Edge .1030,37884148,879704,").unwrap();
-            assert_eq!(r.name, "Microsoft Edge ");
+            assert_eq!(r.name, "Microsoft Edge");
             let r = parse_line("a,b.7,1,2,").unwrap();
             assert_eq!((r.name.as_str(), r.pid, r.bytes_in), ("a,b", 7, 1));
+        }
+
+        #[test]
+        fn names_are_trimmed_but_internal_spaces_kept() {
+            assert_eq!(parse_line("Edge .5,1,2,").unwrap().name, "Edge");
+            assert_eq!(parse_line(" Edge.5,1,2,").unwrap().name, "Edge");
+            assert_eq!(parse_line("  My  App \t.5,1,2,").unwrap().name, "My  App");
+            assert_eq!(parse_line("   .5,1,2,"), None);
         }
 
         #[test]

@@ -12,7 +12,27 @@ use std::time::Duration;
 use crate::delta::{IfCounters, IfKind};
 use crate::nettop::{stream_lines, RunError};
 
-const HELPER_TIMEOUT: Duration = Duration::from_secs(3);
+/// Per-helper cap. These are tiny local reads (milliseconds when idle), but on
+/// a heavily loaded Mac even `fork+exec` can stall for seconds (nettop itself
+/// once took 30 s), and 3 s turned a slow-but-fine moment into a lost sample.
+/// 5 s keeps the whole run bounded: nettop 10 s + netstat 5 s + sysctl 5 s +
+/// at most `GATEWAY_BUDGET` for the route/arp lookups = 30 s worst case, far
+/// below the 120 s sampling interval. A netstat timeout is recorded as a
+/// `netinfo` failure (see `sample.rs`); sysctl/route/arp degrade to "unknown".
+const HELPER_TIMEOUT: Duration = Duration::from_secs(5);
+/// Total time the gateway lookup (`route` + `arp` over every candidate
+/// interface) may take before it gives up and reports no gateway.
+const GATEWAY_BUDGET: Duration = Duration::from_secs(10);
+
+/// `NETMON_HELPER_TIMEOUT_MS` overrides the cap (integration tests only: the
+/// fake helpers are shell scripts whose spawn can stall under parallel load).
+fn helper_timeout() -> Duration {
+    std::env::var("NETMON_HELPER_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(Duration::from_millis)
+        .unwrap_or(HELPER_TIMEOUT)
+}
 
 fn helper(env: &str, default: &str) -> Command {
     Command::new(std::env::var_os(env).unwrap_or_else(|| default.into()))
@@ -52,7 +72,7 @@ pub fn read_interfaces() -> Result<Vec<IfCounters>, RunError> {
     let mut out = Vec::new();
     let mut cmd = helper("NETMON_NETSTAT", "/usr/sbin/netstat");
     cmd.arg("-ibn");
-    let status = stream_lines(&mut cmd, HELPER_TIMEOUT, |l| {
+    let status = stream_lines(&mut cmd, helper_timeout(), |l| {
         if let Some(c) = parse_netstat_line(l) {
             out.push(c);
         }
@@ -130,7 +150,7 @@ pub fn boot_time() -> Option<i64> {
     let mut cmd = helper("NETMON_SYSCTL", "/usr/sbin/sysctl");
     cmd.args(["-n", "kern.boottime"]);
     let mut bt = None;
-    let st = stream_lines(&mut cmd, HELPER_TIMEOUT, |l| {
+    let st = stream_lines(&mut cmd, helper_timeout(), |l| {
         if bt.is_none() {
             bt = parse_boottime(l);
         }
@@ -142,7 +162,7 @@ fn gateway_ip(ifname: &str) -> Option<IpAddr> {
     let mut cmd = helper("NETMON_ROUTE", "/sbin/route");
     cmd.args(["-n", "get", "-ifscope", ifname, "default"]);
     let mut gw = None;
-    stream_lines(&mut cmd, HELPER_TIMEOUT, |l| {
+    stream_lines(&mut cmd, helper_timeout(), |l| {
         if gw.is_none() {
             gw = parse_route_gateway(l);
         }
@@ -155,7 +175,7 @@ fn arp_mac(ip: IpAddr) -> Option<String> {
     let mut cmd = helper("NETMON_ARP", "/usr/sbin/arp");
     cmd.arg("-n").arg(ip.to_string());
     let mut mac = None;
-    stream_lines(&mut cmd, HELPER_TIMEOUT, |l| {
+    stream_lines(&mut cmd, helper_timeout(), |l| {
         if mac.is_none() {
             mac = parse_arp_mac(l);
         }
@@ -167,9 +187,13 @@ fn arp_mac(ip: IpAddr) -> Option<String> {
 /// Gateway MAC of the first physical interface that has one. Never reads the
 /// plain default route: under VPN that is a `utun*` with no gateway MAC.
 pub fn gateway_mac(ifs: &[IfCounters]) -> Option<String> {
-    gateway_candidates(ifs)
-        .into_iter()
-        .find_map(|n| gateway_ip(n).and_then(arp_mac))
+    let start = std::time::Instant::now();
+    gateway_candidates(ifs).into_iter().find_map(|n| {
+        if start.elapsed() >= GATEWAY_BUDGET {
+            return None;
+        }
+        gateway_ip(n).and_then(arp_mac)
+    })
 }
 
 #[cfg(test)]

@@ -279,7 +279,58 @@ friendly schema (UTC `ts` + local `day`, `schema_version`, SQL views,
   pushed the daily maintenance run to 5.1 MB RSS.
 - **Failures** leave a single overwritten `last-error.txt` in the data dir
   (bounded) and a non-zero exit; success removes it.
+
+**Follow-up (TIX-2611-037): error log, gap tracking, name trim.**
+- **Capped error log.** launchd sends stdout/stderr to /dev/null, so every
+  failure of `sample` (nettop spawn/timeout/exit/io, netinfo, DB, maintenance)
+  and every `report`/`query` error is also appended as one line to
+  `netmon.log` (`<UTC time> <subcommand> <kind> <message>`, 0600) in the data
+  dir (`src/errlog.rs`). Open-append-close per event; message capped at 300
+  chars with control characters flattened. Above 256 KB the file is renamed to
+  `netmon.log.1` (replacing the old one), so the total is bounded at ~512 KB.
+  Logging is best effort: its own failures are swallowed and it never creates
+  the data dir. Stderr output is unchanged.
+- **Skipped samples are recorded.** A failed `sample` still writes no partial
+  data, but once the DB is open it inserts one row in `sample_failures`
+  (`ts, day, kind, detail`; kind `timeout|exit|spawn|io|netinfo|db`) in its own
+  tiny transaction. If even that fails it is logged, not fatal. The next good
+  sample still covers the gap correctly (deltas are cumulative-counter
+  differences); the row just makes the gap visible. Failure rows follow the
+  35-day raw retention (deleted by the rollup; no rollup of their own).
+- **Surfacing.** `report` JSON gets `gaps:{failed_samples, by_kind,
+  longest_interval_s}`; the 3-line summary appends `, N FAILED (kind n, ..)` to
+  line 1 only when N > 0. `query` JSON gets the same `gaps` object for the
+  requested range (before `rows`); CSV stdout is untouched and a one-line
+  notice goes to stderr when failures exist. `longest_interval_s` is the max
+  `interval_s` of raw samples in range; it is `null` for days already rolled
+  up (retention) or with no sample. Report/query `schema_version` stay 1: the
+  change is purely additive.
+- **Schema migrations.** Schema is now version 2 and applied as an ordered
+  `MIGRATIONS` list (v1 = original, v2 = `sample_failures`), each step in one
+  transaction with the `user_version` bump; a v1 file upgrades in place.
+- **Name trim.** `nettop::parse_line` trims whitespace from process names
+  (nettop pads some, e.g. `"Microsoft Edge "`), so storage, rules, reports and
+  the `(name, pid)` delta key all use the clean name. All-space names are
+  rejected. A DB written before this change that holds a padded name would see
+  that process as new once (pid+name key changes); none is installed yet.
 - **`netmon sample --dry`** prints parsed nettop rows without touching the DB.
+
+**Maintenance headroom and helper timeout (TIX-2611-037).** The maintenance
+run had crept to 5.0-5.2 MB (environment drift: the same binary measured 4.0 MB
+days earlier), leaving no headroom. Measured by skipping the rollup: it alone
+cost ~1.5 MB. `rollup_before` now walks the old days one at a time inside the
+same single transaction (still all-or-nothing) and deletes `app_deltas` with one
+indexed `sample_id = ?` delete per sample instead of `IN (subquery)`, which
+avoided SQLite's sorter and ephemeral key set over the whole backlog: median
+4.41 MB RSS (6 runs), CPU 100 -> 25 ms. `cache_size` went from -256 to -16
+(about -0.2 MB; steady state unchanged). `temp_store`, `mmap_size` and
+`cache_spill` made no measurable difference. The budget stays one 5 MB limit.
+Helper timeout: each of netstat/sysctl/route/arp is capped at 5 s (was 3 s; a
+loaded Mac can stall a fork+exec), route/arp lookups share a 10 s budget, so a
+run is bounded at nettop 10 + 5 + 5 + 10 = 30 s of the 120 s interval. A netstat
+timeout is a recorded `netinfo` failure; the others degrade to "unknown".
+`NETMON_HELPER_TIMEOUT_MS` overrides the cap; the integration harness sets 60 s
+so fake shell helpers can never flake under parallel load.
 
 **nettop `-s` / wall time (measured, real nettop, this Mac).** `-s` does not
 help with `-L 1`: wall time is a *cold-start* cost of nettop itself, not the
@@ -295,7 +346,7 @@ netmon's own `getrusage`, nettop excluded):**
 |---|---|---|
 | steady-state sample, median CPU (user+sys) | ~7 ms (real nettop run: 7–14 ms) | < 50 ms |
 | steady-state sample, peak RSS | 3.3 MB (real run 3.3–3.6 MB) | < 5 MB |
-| daily maintenance run (rollup+archive check), 36-day DB | 73 ms CPU, 4.0 MB RSS | stays < 5 MB |
+| daily maintenance run (rollup+archive check), 36-day DB | ~25 ms CPU, 4.4 MB RSS (median of 6) | stays < 5 MB |
 | DB at 35 days (25 k samples, 1 M app rows) | 34 MB | < 50 MB |
 | 1-year projection (35 d raw + 365 d worst-case rollups) | 37.7 MB | < 100 MB |
 | release binary | 1.39 MB (stripped, `opt-level="z"`, LTO) | — |

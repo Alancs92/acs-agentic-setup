@@ -209,7 +209,7 @@ mod tests {
             "Google Chrome H.",
             "Slack Helper",
             "zoom.us",
-            "Microsoft Edge ",
+            "Microsoft Edge",
             "2.1.327",
             "ssh",
             "git",

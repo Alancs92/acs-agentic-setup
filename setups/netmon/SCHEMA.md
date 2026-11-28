@@ -1,4 +1,4 @@
-# netmon data schema (schema_version 1)
+# netmon data schema (schema_version 2)
 
 For agents that read netmon's data directly with `sqlite3`. Prefer the **views**
 (`v_*`): they hide the raw/rolled-up split and stay stable across versions;
@@ -8,7 +8,8 @@ the tables are an implementation detail.
 - **Open it read-only:** `sqlite3 -readonly "$HOME/Library/Application Support/netmon/netmon.db"`.
 - **Units:** every `bytes_*` / `*_in` / `*_out` column is **bytes** (not bits, not GB). `in` = received (download), `out` = sent (upload). GB in reports is decimal (1e9 bytes).
 - **Time:** `ts` is UTC epoch seconds. `day` is the **local** calendar date `YYYY-MM-DD` the sample falls in (computed by SQLite with `'localtime'` when written), so day buckets follow the Mac's timezone at the time of the sample.
-- **Version:** `PRAGMA user_version` and `meta.schema_version` both hold `1`. netmon refuses to open a DB with a newer version.
+- **Version:** `PRAGMA user_version` and `meta.schema_version` both hold `2`. netmon refuses to open a DB with a newer version.
+- **Migrations:** applied automatically by `netmon` on open, in order, each in one transaction. v1 -> v2 adds the `sample_failures` table and its index (no existing data is touched). New versions append a step; released steps are never edited.
 
 ## Views (the supported read API)
 
@@ -38,11 +39,17 @@ SELECT app, round(SUM(bytes_in+bytes_out)/1e9, 2) AS gb FROM v_daily_app
 | `app_deltas` | per-app bytes in a sample, **only apps with traffic** (raw, 35 days) | PK `(sample_id, proc)`, `bytes_in, bytes_out` |
 | `daily_rollup` | samples older than 35 days summed per `(day, proc, home)`; kept up to 5 years | PK `(day, proc, home)` |
 | `daily_totals` | same, for the interface totals / coverage | PK `(day, home)`, `iface_in/out, vpn_in/out, unattr_in/out, samples, seconds` |
+| `sample_failures` | one row per skipped sample (v2; raw, 35 days, no rollup) | `id, ts, day, kind (timeout\|exit\|spawn\|io\|netinfo\|db), detail (<= 200 chars)`, index on `day` |
 | `proc_state`, `iface_state` | previous cumulative counters (delta baseline). **Do not read: internal.** | |
 | `app_class` | `proc -> class` cache | PK `proc` |
 
 `interval_s` is the time since the previous sample (about 120; larger after sleep, because launchd does
 not fire while asleep: that sample covers the whole gap, correctly).
+
+A failed run (nettop timeout, etc.) writes no sample data but adds a `sample_failures` row; the next good
+sample's `interval_s` covers the gap. Longest gap of a day: `SELECT MAX(interval_s) FROM samples WHERE day=?`
+(raw days only); failures: `SELECT kind, COUNT(*) FROM sample_failures WHERE day=? GROUP BY kind`.
+Errors are also appended to `netmon.log` (+ one rotated `netmon.log.1`, 256 KB cap each) in the data dir.
 
 ## Lifecycle and size
 
@@ -64,4 +71,10 @@ streams rows. JSON shape (`schema_version` 1):
 `network` values are `home` / `elsewhere`. Groupings of only `day`/`network` read the authoritative
 interface totals (include unattributed); any grouping with `app` or `class` sums per-app deltas
 (exclude unattributed), so those can add up to less than the day total.
-`netmon report --date D` writes `reports/D.json` (also `schema_version` 1: totals, home/elsewhere, `vpn_hint`, `unattributed`, per-class, per-app).
+`netmon report --date D` writes `reports/D.json` (also `schema_version` 1: totals, home/elsewhere, `vpn_hint`, `unattributed`, `gaps`, per-class, per-app).
+
+`gaps` (in the report, and in `query` JSON before `rows`, for the requested range) is additive:
+`{"failed_samples":3,"by_kind":{"exit":1,"timeout":2},"longest_interval_s":120}`. `longest_interval_s` is the
+longest time between successful samples (raw days only; `null` once a day is rolled up or has no sample).
+The 3-line report summary appends `, 3 FAILED (exit 1, timeout 2)` to line 1 only when there are failures.
+`query --format csv` keeps stdout pure CSV and prints the failure count to stderr.
